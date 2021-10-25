@@ -1,6 +1,6 @@
 # @nrwl/react:storybook-configuration
 
-Set up storybook for a react library
+Set up storybook for a react app or library
 
 ## Usage
 

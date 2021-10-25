@@ -13,6 +13,7 @@ import {
   babelLoaderVersion,
   babelPresetTypescriptVersion,
   nxVersion,
+  storybookReactNativeVersion,
   storybookVersion,
   svgrVersion,
   urlLoaderVersion,
@@ -100,6 +101,7 @@ function checkDependenciesInstalled(host: Tree, schema: Schema) {
       devDependencies['@storybook/manager-webpack5'] = storybookVersion;
     }
   }
+
   if (isFramework('html', schema)) {
     devDependencies['@storybook/html'] = storybookVersion;
   }
@@ -118,6 +120,39 @@ function checkDependenciesInstalled(host: Tree, schema: Schema) {
 
   if (isFramework('svelte', schema)) {
     devDependencies['@storybook/svelte'] = storybookVersion;
+  }
+
+  if (isFramework('react-native', schema)) {
+    if (
+      !packageJson.dependencies['@storybook/react-native'] &&
+      !packageJson.devDependencies['@storybook/react-native']
+    ) {
+      devDependencies['@storybook/react-native'] = storybookReactNativeVersion;
+    }
+
+    if (
+      !packageJson.dependencies['@storybook/react-native-server'] &&
+      !packageJson.devDependencies['@storybook/react-native-server']
+    ) {
+      devDependencies['@storybook/react-native-server'] ==
+        storybookReactNativeVersion;
+    }
+
+    if (
+      !packageJson.dependencies['@storybook/addon-ondevice-actions'] &&
+      !packageJson.devDependencies['@storybook/addon-ondevice-actions']
+    ) {
+      devDependencies['@storybook/addon-ondevice-actions'] ==
+        storybookReactNativeVersion;
+    }
+
+    if (
+      !packageJson.dependencies['@storybook/addon-ondevice-knobs'] &&
+      !packageJson.devDependencies['@storybook/addon-ondevice-knobs']
+    ) {
+      devDependencies['@storybook/addon-ondevice-actions'] ==
+        storybookReactNativeVersion;
+    }
   }
 
   return addDependenciesToPackageJson(host, dependencies, devDependencies);

@@ -63,6 +63,54 @@ describe('react native', () => {
     ).not.toThrow();
   });
 
+  it('should generate react-native app with js', async () => {
+    // currently react native does not support pnpm: https://github.com/pnpm/pnpm/issues/3321
+    if (getSelectedPackageManager() === 'pnpm') return;
+
+    const appName = uniq('my-app');
+    const libName = uniq('lib');
+    const componentName = uniq('component');
+
+    runCLI(`generate @nrwl/react-native:application ${appName} --js`);
+    runCLI(`generate @nrwl/react-native:library ${libName} --js`);
+    runCLI(
+      `generate @nrwl/react-native:component ${componentName} --project=${libName} --js --export`
+    );
+
+    updateFile(`apps/${appName}/src/app/App.jsx`, (content) => {
+      let updated = `import ${componentName} from '${proj}/${libName}';\n${content}`;
+      return updated;
+    });
+
+    checkFilesExist(`apps/${appName}/main.jsx`);
+
+    const appTestResults = await runCLIAsync(`test ${appName}`);
+    expect(appTestResults.combinedOutput).toContain(
+      'Test Suites: 1 passed, 1 total'
+    );
+
+    const libTestResults = await runCLIAsync(`test ${libName}`);
+    expect(libTestResults.combinedOutput).toContain(
+      'Test Suites: 1 passed, 1 total'
+    );
+
+    const iosBundleResult = await runCLIAsync(`bundle-ios ${appName}`);
+    expect(iosBundleResult.combinedOutput).toContain(
+      'Done writing bundle output'
+    );
+    expect(() =>
+      checkFilesExist(`dist/apps/${appName}/ios/main.jsbundle`)
+    ).not.toThrow();
+
+    const androidBundleResult = await runCLIAsync(`bundle-android ${appName}`);
+    expect(androidBundleResult.combinedOutput).toContain(
+      'Done writing bundle output'
+    );
+    expect(() =>
+      checkFilesExist(`dist/apps/${appName}/android/main.jsbundle`)
+    ).not.toThrow();
+  });
+
   it('sync npm dependencies for autolink', async () => {
     // currently react native does not support pnpm: https://github.com/pnpm/pnpm/issues/3321
     if (getSelectedPackageManager() === 'pnpm') return;
