@@ -19,6 +19,30 @@ export function addProject(host: Tree, options: NormalizedSchema) {
 function getTargets(options: NormalizedSchema) {
   const architect: { [key: string]: TargetConfiguration } = {};
 
+  architect['e2e-ios'] = {
+    executor: '@nrwl/workspace:run-commands',
+    options: {
+      command: `nx build-ios ${options.name} && nx test-ios ${options.name}`,
+    },
+    configurations: {
+      production: {
+        command: `nx build-ios ${options.name} --prod && nx test-ios ${options.name} --prod`,
+      },
+    },
+  };
+
+  architect['e2e-android'] = {
+    executor: '@nrwl/workspace:run-commands',
+    options: {
+      command: `nx build-android ${options.name} && nx test-android ${options.name}`,
+    },
+    configurations: {
+      production: {
+        command: `nx build-android ${options.name} --prod && nx test-android ${options.name} --prod`,
+      },
+    },
+  };
+
   architect['build-ios'] = {
     executor: '@nrwl/detox:build',
     options: {
