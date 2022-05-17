@@ -193,7 +193,7 @@
     "next-sitemap": "^1.6.108",
     "ng-packagr": "~13.1.0",
     "ngrx-store-freeze": "0.2.4",
-    "node-fetch": "^2.6.1",
+    "node-fetch": "^2.6.7",
     "open": "^7.4.2",
     "parse-markdown-links": "^1.0.4",
     "parse5": "4.0.0",
