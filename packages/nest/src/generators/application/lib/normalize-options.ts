@@ -1,27 +1,42 @@
-import type { Tree } from '@nrwl/devkit';
-import { getWorkspaceLayout, joinPathFragments, names } from '@nrwl/devkit';
-import { Linter } from '@nrwl/linter';
-import type { Schema as NodeApplicationGeneratorOptions } from '@nrwl/node/src/generators/application/schema';
+import { Tree, readNxJson } from '@nx/devkit';
+import { determineProjectNameAndRootOptions } from '@nx/devkit/src/generators/project-name-and-root-utils';
+import { Linter } from '@nx/eslint';
+import type { Schema as NodeApplicationGeneratorOptions } from '@nx/node/src/generators/application/schema';
 import type { ApplicationGeneratorOptions, NormalizedOptions } from '../schema';
 
-export function normalizeOptions(
+export async function normalizeOptions(
   tree: Tree,
   options: ApplicationGeneratorOptions
-): NormalizedOptions {
-  const appDirectory = options.directory
-    ? `${names(options.directory).fileName}/${names(options.name).fileName}`
-    : names(options.name).fileName;
+): Promise<NormalizedOptions> {
+  const {
+    projectName: appProjectName,
+    projectRoot: appProjectRoot,
+    projectNameAndRootFormat,
+  } = await determineProjectNameAndRootOptions(tree, {
+    name: options.name,
+    projectType: 'application',
+    directory: options.directory,
+    projectNameAndRootFormat: options.projectNameAndRootFormat,
+    rootProject: options.rootProject,
+    callingGenerator: '@nx/nest:application',
+  });
+  options.rootProject = appProjectRoot === '.';
+  options.projectNameAndRootFormat = projectNameAndRootFormat;
 
-  const appProjectRoot = joinPathFragments(
-    getWorkspaceLayout(tree).appsDir,
-    appDirectory
-  );
+  const nxJson = readNxJson(tree);
+  const addPlugin =
+    process.env.NX_ADD_PLUGINS !== 'false' &&
+    nxJson.useInferencePlugins !== false;
 
   return {
+    addPlugin,
     ...options,
+    strict: options.strict ?? false,
+    appProjectName,
     appProjectRoot,
     linter: options.linter ?? Linter.EsLint,
     unitTestRunner: options.unitTestRunner ?? 'jest',
+    e2eTestRunner: options.e2eTestRunner ?? 'jest',
   };
 }
 
@@ -32,12 +47,18 @@ export function toNodeApplicationGeneratorOptions(
     name: options.name,
     directory: options.directory,
     frontendProject: options.frontendProject,
+    projectNameAndRootFormat: options.projectNameAndRootFormat,
     linter: options.linter,
     skipFormat: true,
     skipPackageJson: options.skipPackageJson,
     standaloneConfig: options.standaloneConfig,
     tags: options.tags,
     unitTestRunner: options.unitTestRunner,
+    e2eTestRunner: options.e2eTestRunner,
     setParserOptionsProject: options.setParserOptionsProject,
+    rootProject: options.rootProject,
+    bundler: 'webpack', // Some features require webpack plugins such as TS transformers
+    isNest: true,
+    addPlugin: options.addPlugin,
   };
 }

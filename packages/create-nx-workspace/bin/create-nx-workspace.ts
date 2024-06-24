@@ -1,740 +1,1229 @@
-#!/usr/bin/env node
-
-import { exec } from 'child_process';
-import { writeFileSync } from 'fs';
 import * as enquirer from 'enquirer';
-import * as path from 'path';
-import { dirSync } from 'tmp';
-import * as yargsParser from 'yargs-parser';
-import { showNxWarning, unparse } from './shared';
-import { output } from './output';
-import * as ora from 'ora';
+import * as yargs from 'yargs';
+import * as chalk from 'chalk';
 
+import { CreateWorkspaceOptions } from '../src/create-workspace-options';
+import { createWorkspace } from '../src/create-workspace';
+import { isKnownPreset, Preset } from '../src/utils/preset/preset';
+import { CLIErrorMessageConfig, output } from '../src/utils/output';
+import { nxVersion } from '../src/utils/nx/nx-version';
+import { pointToTutorialAndCourse } from '../src/utils/preset/point-to-tutorial-and-course';
+
+import { yargsDecorator } from './decorator';
+import { getPackageNameFromThirdPartyPreset } from '../src/utils/preset/get-third-party-preset';
 import {
-  detectInvokedPackageManager,
-  getPackageManagerCommand,
-  getPackageManagerVersion,
-  PackageManager,
-} from './package-manager';
-import { validateNpmPackage } from './validate-npm-package';
+  determineDefaultBase,
+  determineIfGitHubWillBeUsed,
+  determineNxCloud,
+  determinePackageManager,
+} from '../src/internal-utils/prompts';
+import {
+  withAllPrompts,
+  withGitOptions,
+  withUseGitHub,
+  withNxCloud,
+  withOptions,
+  withPackageManager,
+} from '../src/internal-utils/yargs-options';
+import { showNxWarning } from '../src/utils/nx/show-nx-warning';
+import { printNxCloudSuccessMessage } from '../src/utils/nx/nx-cloud';
+import { messages, recordStat } from '../src/utils/nx/ab-testing';
+import { mapErrorToBodyLines } from '../src/utils/error-utils';
+import { existsSync } from 'fs';
 
-export enum Preset {
-  Apps = 'apps',
-  Empty = 'empty', // same as apps, deprecated
-  Core = 'core',
-  NPM = 'npm', // same as core, deprecated
-  TS = 'ts',
-  WebComponents = 'web-components',
-  Angular = 'angular',
-  AngularWithNest = 'angular-nest',
-  React = 'react',
-  ReactWithExpress = 'react-express',
-  ReactNative = 'react-native',
-  NextJs = 'next',
-  Gatsby = 'gatsby',
-  Nest = 'nest',
-  Express = 'express',
+interface BaseArguments extends CreateWorkspaceOptions {
+  preset: Preset;
 }
 
-const presetOptions: { name: Preset; message: string }[] = [
-  {
-    name: Preset.Apps,
-    message:
-      'apps              [an empty workspace with no plugins with a layout that works best for building apps]',
-  },
-  {
-    name: Preset.Core,
-    message:
-      'core              [an empty workspace with no plugins set up to publish npm packages (similar to yarn workspaces)]',
-  },
-  {
-    name: Preset.TS,
-    message:
-      'ts                [an empty workspace with the JS/TS plugin preinstalled]',
-  },
-  {
-    name: Preset.React,
-    message: 'react             [a workspace with a single React application]',
-  },
-  {
-    name: Preset.Angular,
-    message:
-      'angular           [a workspace with a single Angular application]',
-  },
-  {
-    name: Preset.NextJs,
-    message:
-      'next.js           [a workspace with a single Next.js application]',
-  },
-  {
-    name: Preset.Gatsby,
-    message: 'gatsby            [a workspace with a single Gatsby application]',
-  },
-  {
-    name: Preset.Nest,
-    message: 'nest              [a workspace with a single Nest application]',
-  },
-  {
-    name: Preset.Express,
-    message:
-      'express           [a workspace with a single Express application]',
-  },
-  {
-    name: Preset.WebComponents,
-    message:
-      'web components    [a workspace with a single app built using web components]',
-  },
-  {
-    name: Preset.ReactNative,
-    message:
-      'react-native      [a workspace with a single React Native application]',
-  },
-  {
-    name: Preset.ReactWithExpress,
-    message:
-      'react-express     [a workspace with a full stack application (React + Express)]',
-  },
-  {
-    name: Preset.AngularWithNest,
-    message:
-      'angular-nest      [a workspace with a full stack application (Angular + Nest)]',
-  },
-];
+interface NoneArguments extends BaseArguments {
+  stack: 'none';
+  workspaceType: 'package-based' | 'integrated' | 'standalone';
+  js: boolean;
+  appName: string | undefined;
+}
 
-const tsVersion = 'TYPESCRIPT_VERSION';
-const cliVersion = 'NX_VERSION';
-const nxVersion = 'NX_VERSION';
-const prettierVersion = 'PRETTIER_VERSION';
+interface ReactArguments extends BaseArguments {
+  stack: 'react';
+  workspaceType: 'standalone' | 'integrated';
+  appName: string;
+  framework: 'none' | 'next' | 'remix';
+  style: string;
+  bundler: 'webpack' | 'vite' | 'rspack';
+  nextAppDir: boolean;
+  nextSrcDir: boolean;
+  e2eTestRunner: 'none' | 'cypress' | 'playwright';
+}
 
-const parsedArgs: any = yargsParser(process.argv.slice(2), {
-  string: [
-    'name',
-    'cli',
-    'preset',
-    'appName',
-    'style',
-    'defaultBase',
-    'packageManager',
-  ],
-  alias: {
-    packageManager: 'pm',
-  },
-  boolean: ['help', 'interactive', 'nxCloud'],
-  default: {
-    interactive: false,
-  },
-  configuration: {
+interface AngularArguments extends BaseArguments {
+  stack: 'angular';
+  workspaceType: 'standalone' | 'integrated';
+  appName: string;
+  style: string;
+  routing: boolean;
+  standaloneApi: boolean;
+  e2eTestRunner: 'none' | 'cypress' | 'playwright';
+  bundler: 'webpack' | 'esbuild';
+  ssr: boolean;
+  prefix: string;
+}
+
+interface VueArguments extends BaseArguments {
+  stack: 'vue';
+  workspaceType: 'standalone' | 'integrated';
+  appName: string;
+  framework: 'none' | 'nuxt';
+  style: string;
+  e2eTestRunner: 'none' | 'cypress' | 'playwright';
+}
+
+interface NodeArguments extends BaseArguments {
+  stack: 'node';
+  workspaceType: 'standalone' | 'integrated';
+  appName: string;
+  framework: 'express' | 'fastify' | 'koa' | 'nest';
+  docker: boolean;
+}
+
+interface UnknownStackArguments extends BaseArguments {
+  stack: 'unknown';
+}
+
+type Arguments =
+  | NoneArguments
+  | ReactArguments
+  | AngularArguments
+  | VueArguments
+  | NodeArguments
+  | UnknownStackArguments;
+
+export const commandsObject: yargs.Argv<Arguments> = yargs
+  .wrap(yargs.terminalWidth())
+  .parserConfiguration({
     'strip-dashed': true,
-    'strip-aliased': true,
-  },
-}) as any;
+    'dot-notation': true,
+  })
+  .command<Arguments>(
+    // this is the default and only command
+    '$0 [name] [options]',
+    'Create a new Nx workspace',
+    (yargs) =>
+      withOptions(
+        yargs
+          .option('name', {
+            describe: chalk.dim`Workspace name (e.g. org name)`,
+            type: 'string',
+          })
+          .option('preset', {
+            describe: chalk.dim`Customizes the initial content of your workspace. Default presets include: [${Object.values(
+              Preset
+            )
+              .map((p) => `"${p}"`)
+              .join(
+                ', '
+              )}]. To build your own see https://nx.dev/extending-nx/recipes/create-preset`,
+            type: 'string',
+          })
+          .option('interactive', {
+            describe: chalk.dim`Enable interactive mode with presets`,
+            type: 'boolean',
+            default: true,
+          })
+          .option('workspaceType', {
+            describe: chalk.dim`The type of workspace to create`,
+            choices: ['integrated', 'package-based', 'standalone'],
+            type: 'string',
+          })
+          .option('appName', {
+            describe: chalk.dim`The name of the app when using a monorepo with certain stacks`,
+            type: 'string',
+          })
+          .option('style', {
+            describe: chalk.dim`Stylesheet type to be used with certain stacks`,
+            type: 'string',
+          })
+          .option('standaloneApi', {
+            describe: chalk.dim`Use Standalone Components if generating an Angular app`,
+            type: 'boolean',
+            default: true,
+          })
+          .option('routing', {
+            describe: chalk.dim`Add a routing setup for an Angular app`,
+            type: 'boolean',
+            default: true,
+          })
+          .option('bundler', {
+            describe: chalk.dim`Bundler to be used to build the app`,
+            type: 'string',
+          })
+          .option('framework', {
+            describe: chalk.dim`Framework option to be used with certain stacks`,
+            type: 'string',
+          })
+          .option('docker', {
+            describe: chalk.dim`Generate a Dockerfile for the Node API`,
+            type: 'boolean',
+          })
+          .option('nextAppDir', {
+            describe: chalk.dim`Enable the App Router for Next.js`,
+            type: 'boolean',
+          })
+          .option('nextSrcDir', {
+            describe: chalk.dim`Generate a 'src/' directory for Next.js`,
+            type: 'boolean',
+          })
+          .option('e2eTestRunner', {
+            describe: chalk.dim`Test runner to use for end to end (E2E) tests.`,
+            choices: ['playwright', 'cypress', 'none'],
+            type: 'string',
+          })
+          .option('ssr', {
+            describe: chalk.dim`Enable Server-Side Rendering (SSR) and Static Site Generation (SSG/Prerendering) for the Angular application`,
+            type: 'boolean',
+          })
+          .option('prefix', {
+            describe: chalk.dim`Prefix to use for Angular component and directive selectors.`,
+            type: 'string',
+          }),
+        withNxCloud,
+        withUseGitHub,
+        withAllPrompts,
+        withPackageManager,
+        withGitOptions
+      ),
 
-if (parsedArgs.help) {
-  showHelp();
-  process.exit(0);
-}
+    async function handler(argv: yargs.ArgumentsCamelCase<Arguments>) {
+      await main(argv).catch((error) => {
+        const { version } = require('../package.json');
+        output.error({
+          title: `Something went wrong! v${version}`,
+        });
+        throw error;
+      });
+    },
+    [normalizeArgsMiddleware] as yargs.MiddlewareFunction<{}>[]
+  )
+  .help('help', chalk.dim`Show help`)
+  .updateLocale(yargsDecorator)
+  .version(
+    'version',
+    chalk.dim`Show version`,
+    nxVersion
+  ) as yargs.Argv<Arguments>;
 
-(async function main() {
-  const packageManager: PackageManager =
-    parsedArgs.packageManager || detectInvokedPackageManager();
+async function main(parsedArgs: yargs.Arguments<Arguments>) {
+  output.log({
+    title: `Creating your v${nxVersion} workspace.`,
+  });
 
-  const { name, cli, preset, appName, style, nxCloud } = await getConfiguration(
+  const workspaceInfo = await createWorkspace<Arguments>(
+    parsedArgs.preset,
     parsedArgs
   );
 
-  output.log({
-    title: `Nx is creating your v${cliVersion} workspace.`,
-    bodyLines: [
-      'To make sure the command works reliably in all environments, and that the preset is applied correctly,',
-      `Nx will run "${packageManager} install" several times. Please wait.`,
+  showNxWarning(parsedArgs.name);
+
+  await recordStat({
+    nxVersion,
+    command: 'create-nx-workspace',
+    useCloud: parsedArgs.nxCloud !== 'skip',
+    meta: [
+      messages.codeOfSelectedPromptMessage('setupCI'),
+      messages.codeOfSelectedPromptMessage('setupNxCloud'),
     ],
   });
 
-  const tmpDir = await createSandbox(packageManager);
-
-  await createApp(tmpDir, name, packageManager, {
-    ...parsedArgs,
-    cli,
-    preset,
-    appName,
-    style,
-    nxCloud,
-  });
-
-  let nxCloudInstallRes;
-  if (nxCloud) {
-    nxCloudInstallRes = await setupNxCloud(name, packageManager);
+  if (parsedArgs.nxCloud && workspaceInfo.nxCloudInfo) {
+    printNxCloudSuccessMessage(workspaceInfo.nxCloudInfo);
   }
 
-  showNxWarning(name);
-  pointToTutorialAndCourse(preset);
-
-  if (nxCloud && nxCloudInstallRes.code === 0) {
-    printNxCloudSuccessMessage(nxCloudInstallRes.stdout);
+  if (isKnownPreset(parsedArgs.preset)) {
+    pointToTutorialAndCourse(parsedArgs.preset as Preset);
+  } else {
+    output.log({
+      title: `Successfully applied preset: ${parsedArgs.preset}`,
+    });
   }
-})().catch((error) => {
-  const { version } = require('../package.json');
-  output.error({
-    title: `Something went wrong! v${version}`,
-  });
-  throw error;
-});
-
-function showHelp() {
-  const options = Object.values(Preset)
-    .map((preset) => `"${preset}"`)
-    .join(', ');
-
-  console.log(`
-  Usage: create-nx-workspace <name> [options] [new workspace options]
-
-  Create a new Nx workspace
-
-  Options:
-
-    name                      Workspace name (e.g., org name)
-
-    preset                    What to create in a new workspace (options: ${options})
-
-    appName                   The name of the application created by some presets
-
-    cli                       CLI to power the Nx workspace (options: "nx", "angular")
-
-    style                     Default style option to be used when a non-empty preset is selected
-                              options: ("css", "scss", "less") plus ("styl") for all non-Angular and ("styled-components", "@emotion/styled", "styled-jsx") for React, Next.js, Gatsby
-
-    interactive               Enable interactive mode when using presets (boolean)
-
-    packageManager            Package manager to use (npm, yarn, pnpm)
-
-    nx-cloud                  Use Nx Cloud (boolean)
-
-    [new workspace options]   any 'new workspace' options
-`);
 }
 
-async function getConfiguration(parsedArgs) {
+/**
+ * This function is used to normalize the arguments passed to the command.
+ * It would:
+ * - normalize the preset.
+ * @param argv user arguments
+ */
+async function normalizeArgsMiddleware(
+  argv: yargs.Arguments<Arguments>
+): Promise<void> {
+  output.log({
+    title:
+      "Let's create a new workspace [https://nx.dev/getting-started/intro]",
+  });
+
   try {
-    let style, appName;
-
-    const name = await determineWorkspaceName(parsedArgs);
-    let preset = await determineThirdPartyPackage(parsedArgs);
-
-    if (!preset) {
-      preset = await determinePreset(parsedArgs);
-      appName = await determineAppName(preset, parsedArgs);
-      style = await determineStyle(preset, parsedArgs);
+    argv.name = await determineFolder(argv);
+    if (!argv.preset || isKnownPreset(argv.preset)) {
+      argv.stack = await determineStack(argv);
+      const presetOptions = await determinePresetOptions(argv);
+      Object.assign(argv, presetOptions);
+    } else {
+      try {
+        getPackageNameFromThirdPartyPreset(argv.preset);
+      } catch (e) {
+        if (e instanceof Error) {
+          output.error({
+            title: `Could not find preset "${argv.preset}"`,
+            bodyLines: mapErrorToBodyLines(e),
+          });
+        } else {
+          console.error(e);
+        }
+        process.exit(1);
+      }
     }
 
-    const cli = await determineCli(preset, parsedArgs);
-    const nxCloud = await askAboutNxCloud(parsedArgs);
-
-    return {
-      name,
-      preset,
-      appName,
-      style,
-      cli,
-      nxCloud,
-    };
+    const packageManager = await determinePackageManager(argv);
+    const defaultBase = await determineDefaultBase(argv);
+    if (process.env.NX_NEW_CLOUD_ONBOARDING === 'true') {
+      const nxCloud =
+        argv.skipGit === true ? 'skip' : await determineNxCloud(argv);
+      const useGitHub =
+        nxCloud === 'skip'
+          ? undefined
+          : nxCloud === 'github' ||
+            (await determineIfGitHubWillBeUsed(nxCloud));
+      Object.assign(argv, {
+        nxCloud,
+        useGitHub,
+        packageManager,
+        defaultBase,
+      });
+    } else {
+      const nxCloud = await determineNxCloud(argv);
+      Object.assign(argv, {
+        nxCloud,
+        packageManager,
+        defaultBase,
+      });
+    }
   } catch (e) {
     console.error(e);
     process.exit(1);
   }
 }
 
-function determineWorkspaceName(parsedArgs: any): Promise<string> {
-  const workspaceName: string = parsedArgs._[0]
-    ? parsedArgs._[0]
+function invariant(
+  predicate: string | number | boolean,
+  message: CLIErrorMessageConfig
+): asserts predicate is NonNullable<string | number> | true {
+  if (!predicate) {
+    output.error(message);
+    process.exit(1);
+  }
+}
+
+async function determineFolder(
+  parsedArgs: yargs.Arguments<Arguments>
+): Promise<string> {
+  const folderName: string = parsedArgs._[0]
+    ? parsedArgs._[0].toString()
     : parsedArgs.name;
+  if (folderName) return folderName;
 
-  if (workspaceName) {
-    return Promise.resolve(workspaceName);
-  }
+  const reply = await enquirer.prompt<{ folderName: string }>([
+    {
+      name: 'folderName',
+      message: `Where would you like to create your workspace?`,
+      initial: 'org',
+      type: 'input',
+    },
+  ]);
 
-  return enquirer
-    .prompt([
-      {
-        name: 'WorkspaceName',
-        message: `Workspace name (e.g., org name)    `,
-        type: 'input',
-      },
-    ])
-    .then((a: { WorkspaceName: string }) => {
-      if (!a.WorkspaceName) {
-        output.error({
-          title: 'Invalid workspace name',
-          bodyLines: [`Workspace name cannot be empty`],
-        });
-        process.exit(1);
-      }
-      return a.WorkspaceName;
-    });
+  invariant(reply.folderName, {
+    title: 'Invalid folder name',
+    bodyLines: [`Folder name cannot be empty`],
+  });
+
+  invariant(!existsSync(reply.folderName), {
+    title: 'That folder is already taken',
+  });
+
+  return reply.folderName;
 }
 
-async function determineThirdPartyPackage({ preset }) {
-  if (preset && Object.values(Preset).indexOf(preset) === -1) {
-    const packageName = preset.match(/.+@/)
-      ? preset[0] + preset.substring(1).split('@')[0]
-      : preset;
-    const validateResult = validateNpmPackage(packageName);
-    if (validateResult.validForNewPackages) {
-      return Promise.resolve(preset);
-    } else {
-      //! Error here
-      output.error({
-        title: 'Invalid preset npm package',
-        bodyLines: [
-          `There was an error with the preset npm package you provided:`,
-          '',
-          ...validateResult.errors,
-        ],
-      });
-      process.exit(1);
-    }
-  } else {
-    return Promise.resolve(null);
-  }
-}
-
-function determinePreset(parsedArgs: any): Promise<Preset> {
+async function determineStack(
+  parsedArgs: yargs.Arguments<Arguments>
+): Promise<'none' | 'react' | 'angular' | 'vue' | 'node' | 'unknown'> {
   if (parsedArgs.preset) {
-    if (Object.values(Preset).indexOf(parsedArgs.preset) === -1) {
-      output.error({
-        title: 'Invalid preset',
-        bodyLines: [
-          `It must be one of the following:`,
-          '',
-          ...Object.values(Preset),
-        ],
-      });
-      process.exit(1);
-    } else {
-      return Promise.resolve(parsedArgs.preset);
+    switch (parsedArgs.preset) {
+      case Preset.Angular:
+      case Preset.AngularStandalone:
+      case Preset.AngularMonorepo:
+        return 'angular';
+      case Preset.React:
+      case Preset.ReactStandalone:
+      case Preset.ReactMonorepo:
+      case Preset.NextJs:
+      case Preset.NextJsStandalone:
+      case Preset.RemixStandalone:
+      case Preset.RemixMonorepo:
+      case Preset.ReactNative:
+      case Preset.Expo:
+        return 'react';
+      case Preset.Vue:
+      case Preset.VueStandalone:
+      case Preset.VueMonorepo:
+      case Preset.Nuxt:
+      case Preset.NuxtStandalone:
+        return 'vue';
+      case Preset.Nest:
+      case Preset.NodeStandalone:
+      case Preset.Express:
+        return 'node';
+      case Preset.Apps:
+      case Preset.NPM:
+      case Preset.TS:
+      case Preset.TsStandalone:
+        return 'none';
+      case Preset.WebComponents:
+      default:
+        return 'unknown';
     }
   }
 
-  return enquirer
-    .prompt([
-      {
-        name: 'Preset',
-        message: `What to create in the new workspace`,
-        initial: 'empty' as any,
-        type: 'select',
-        choices: presetOptions,
-      },
-    ])
-    .then((a: { Preset: Preset }) => a.Preset);
-}
-
-function determineAppName(preset: Preset, parsedArgs: any): Promise<string> {
-  if (
-    preset === Preset.Apps ||
-    preset === Preset.Core ||
-    preset === Preset.TS ||
-    preset === Preset.Empty ||
-    preset === Preset.NPM
-  ) {
-    return Promise.resolve('');
-  }
-
-  if (parsedArgs.appName) {
-    return Promise.resolve(parsedArgs.appName);
-  }
-
-  return enquirer
-    .prompt([
-      {
-        name: 'AppName',
-        message: `Application name                   `,
-        type: 'input',
-      },
-    ])
-    .then((a: { AppName: string }) => {
-      if (!a.AppName) {
-        output.error({
-          title: 'Invalid name',
-          bodyLines: [`Name cannot be empty`],
-        });
-        process.exit(1);
-      }
-      return a.AppName;
-    });
-}
-
-function determineCli(
-  preset: Preset,
-  parsedArgs: any
-): Promise<'nx' | 'angular'> {
-  if (parsedArgs.cli) {
-    if (['nx', 'angular'].indexOf(parsedArgs.cli) === -1) {
-      output.error({
-        title: 'Invalid cli',
-        bodyLines: [`It must be one of the following:`, '', 'nx', 'angular'],
-      });
-      process.exit(1);
-    }
-    return Promise.resolve(parsedArgs.cli);
-  }
-
-  switch (preset) {
-    case Preset.Angular:
-    case Preset.AngularWithNest: {
-      return Promise.resolve('angular');
-    }
-    default: {
-      return Promise.resolve('nx');
-    }
-  }
-}
-
-function determineStyle(preset: Preset, parsedArgs: any) {
-  if (
-    preset === Preset.Apps ||
-    preset === Preset.Core ||
-    preset === Preset.TS ||
-    preset === Preset.Empty ||
-    preset === Preset.NPM ||
-    preset === Preset.Nest ||
-    preset === Preset.Express ||
-    preset === Preset.ReactNative
-  ) {
-    return Promise.resolve(null);
-  }
-
-  const choices = [
+  const { stack } = await enquirer.prompt<{
+    stack: 'none' | 'react' | 'angular' | 'node' | 'vue';
+  }>([
     {
-      name: 'css',
-      message: 'CSS',
-    },
-    {
-      name: 'scss',
-      message: 'SASS(.scss)       [ http://sass-lang.com   ]',
-    },
-    {
-      name: 'less',
-      message: 'LESS              [ http://lesscss.org     ]',
-    },
-  ];
-
-  if (![Preset.Angular, Preset.AngularWithNest].includes(preset)) {
-    choices.push({
-      name: 'styl',
-      message: 'Stylus(.styl)     [ http://stylus-lang.com ]',
-    });
-  }
-
-  if (
-    [
-      Preset.ReactWithExpress,
-      Preset.React,
-      Preset.NextJs,
-      Preset.Gatsby,
-    ].includes(preset)
-  ) {
-    choices.push(
-      {
-        name: 'styled-components',
-        message:
-          'styled-components [ https://styled-components.com            ]',
-      },
-      {
-        name: '@emotion/styled',
-        message:
-          'emotion           [ https://emotion.sh                       ]',
-      },
-      {
-        name: 'styled-jsx',
-        message:
-          'styled-jsx        [ https://www.npmjs.com/package/styled-jsx ]',
-      }
-    );
-  }
-
-  if (!parsedArgs.style) {
-    return enquirer
-      .prompt([
+      name: 'stack',
+      message: `Which stack do you want to use?`,
+      type: 'autocomplete',
+      choices: [
         {
-          name: 'style',
-          message: `Default stylesheet format          `,
-          initial: 'css' as any,
-          type: 'select',
-          choices: choices,
+          name: `none`,
+          message: `None:          Configures a TypeScript/JavaScript project with minimal structure.`,
         },
-      ])
-      .then((a: { style: string }) => a.style);
-  }
-
-  const foundStyle = choices.find((choice) => choice.name === parsedArgs.style);
-
-  if (foundStyle === undefined) {
-    output.error({
-      title: 'Invalid style',
-      bodyLines: [
-        `It must be one of the following:`,
-        '',
-        ...choices.map((choice) => choice.name),
+        {
+          name: `react`,
+          message: `React:         Configures a React application with your framework of choice.`,
+        },
+        {
+          name: `vue`,
+          message: `Vue:           Configures a Vue application with your framework of choice.`,
+        },
+        {
+          name: `angular`,
+          message: `Angular:       Configures a Angular application with modern tooling.`,
+        },
+        {
+          name: `node`,
+          message: `Node:          Configures a Node API application with your framework of choice.`,
+        },
       ],
-    });
+    },
+  ]);
 
-    process.exit(1);
-  }
-
-  return Promise.resolve(parsedArgs.style);
+  return stack;
 }
 
-async function createSandbox(packageManager: string) {
-  const installSpinner = ora(
-    `Installing dependencies with ${packageManager}`
-  ).start();
-
-  const tmpDir = dirSync().name;
-  try {
-    writeFileSync(
-      path.join(tmpDir, 'package.json'),
-      JSON.stringify({
-        dependencies: {
-          '@nrwl/workspace': nxVersion,
-          '@nrwl/tao': cliVersion,
-          typescript: tsVersion,
-          prettier: prettierVersion,
-        },
-        license: 'MIT',
-      })
-    );
-
-    await execAndWait(`${packageManager} install --silent`, tmpDir);
-
-    installSpinner.succeed();
-  } catch (e) {
-    installSpinner.fail();
-    output.error({
-      title: `Nx failed to install dependencies`,
-      bodyLines: mapErrorToBodyLines(e),
-    });
-    process.exit(1);
-  } finally {
-    installSpinner.stop();
+async function determinePresetOptions(
+  parsedArgs: yargs.Arguments<Arguments>
+): Promise<Partial<Arguments>> {
+  switch (parsedArgs.stack) {
+    case 'none':
+      return determineNoneOptions(parsedArgs);
+    case 'react':
+      return determineReactOptions(parsedArgs);
+    case 'angular':
+      return determineAngularOptions(parsedArgs);
+    case 'vue':
+      return determineVueOptions(parsedArgs);
+    case 'node':
+      return determineNodeOptions(parsedArgs);
+    default:
+      return parsedArgs;
   }
-
-  return tmpDir;
 }
 
-async function createApp(
-  tmpDir: string,
-  name: string,
-  packageManager: PackageManager,
-  parsedArgs: any
-) {
-  const { _, cli, ...restArgs } = parsedArgs;
+async function determineNoneOptions(
+  parsedArgs: yargs.Arguments<NoneArguments>
+): Promise<Partial<NoneArguments>> {
+  let preset: Preset;
+  let workspaceType: 'package-based' | 'standalone' | 'integrated' | undefined =
+    undefined;
+  let appName: string | undefined = undefined;
+  let js: boolean | undefined;
 
-  // Ensure to use packageManager for args
-  // if it's not already passed in from previous process
-  if (!restArgs.packageManager) {
-    restArgs.packageManager = packageManager;
-  }
-
-  const args = unparse(restArgs).join(' ');
-
-  const pmc = getPackageManagerCommand(packageManager);
-
-  const command = `new ${name} ${args} --collection=@nrwl/workspace`;
-
-  let nxWorkspaceRoot = `"${process.cwd().replace(/\\/g, '/')}"`;
-
-  // If path contains spaces there is a problem in Windows for npm@6.
-  // In this case we have to escape the wrapping quotes.
-  if (
-    process.platform === 'win32' &&
-    /\s/.test(nxWorkspaceRoot) &&
-    packageManager === 'npm'
-  ) {
-    const pmVersion = +getPackageManagerVersion(packageManager).split('.')[0];
-    if (pmVersion < 7) {
-      nxWorkspaceRoot = `\\"${nxWorkspaceRoot.slice(1, -1)}\\"`;
+  if (parsedArgs.preset) {
+    preset = parsedArgs.preset;
+  } else {
+    workspaceType = await determinePackageBasedOrIntegratedOrStandalone();
+    if (workspaceType === 'standalone') {
+      preset = Preset.TsStandalone;
+    } else if (workspaceType === 'integrated') {
+      preset = Preset.Apps;
+    } else {
+      preset = Preset.NPM;
     }
   }
-  const fullCommandWithoutWorkspaceRoot = `${pmc.exec} tao ${command}/generators.json --cli=${cli}`;
 
-  let workspaceSetupSpinner = ora('Creating your workspace').start();
-
-  try {
-    const fullCommand = `${fullCommandWithoutWorkspaceRoot} --nxWorkspaceRoot=${nxWorkspaceRoot}`;
-    await execAndWait(fullCommand, tmpDir);
-
-    workspaceSetupSpinner.succeed('Nx has successfully created the workspace.');
-  } catch (e) {
-    workspaceSetupSpinner.fail();
-    output.error({
-      title: `Nx failed to create a workspace.`,
-      bodyLines: mapErrorToBodyLines(e),
-    });
-    process.exit(1);
-  } finally {
-    workspaceSetupSpinner.stop();
+  if (parsedArgs.js !== undefined) {
+    js = parsedArgs.js;
+  } else if (preset === Preset.TsStandalone) {
+    // Only standalone TS preset generates a default package, so we need to provide --js and --appName options.
+    appName = parsedArgs.name;
+    const reply = await enquirer.prompt<{ ts: 'Yes' | 'No' }>([
+      {
+        name: 'ts',
+        message: `Would you like to use TypeScript with this project?`,
+        type: 'autocomplete',
+        choices: [
+          {
+            name: 'Yes',
+          },
+          {
+            name: 'No',
+          },
+        ],
+        initial: 0,
+      },
+    ]);
+    js = reply.ts === 'No';
   }
+
+  return { preset, js, appName };
 }
 
-async function setupNxCloud(name: string, packageManager: PackageManager) {
-  const nxCloudSpinner = ora(`Setting up NxCloud`).start();
-  try {
-    const pmc = getPackageManagerCommand(packageManager);
-    const res = await execAndWait(
-      `${pmc.exec} nx g @nrwl/nx-cloud:init --no-analytics`,
-      path.join(process.cwd(), name)
-    );
-    nxCloudSpinner.succeed('NxCloud has been set up successfully');
-    return res;
-  } catch (e) {
-    nxCloudSpinner.fail();
+async function determineReactOptions(
+  parsedArgs: yargs.Arguments<ReactArguments>
+): Promise<Partial<Arguments>> {
+  let preset: Preset;
+  let style: undefined | string = undefined;
+  let appName: string;
+  let bundler: undefined | 'webpack' | 'vite' | 'rspack' = undefined;
+  let e2eTestRunner: undefined | 'none' | 'cypress' | 'playwright' = undefined;
+  let nextAppDir = false;
+  let nextSrcDir = false;
 
-    output.error({
-      title: `Nx failed to setup NxCloud`,
-      bodyLines: mapErrorToBodyLines(e),
-    });
-
-    process.exit(1);
-  } finally {
-    nxCloudSpinner.stop();
-  }
-}
-
-function printNxCloudSuccessMessage(nxCloudOut: string) {
-  const bodyLines = nxCloudOut.split('Nx Cloud has been enabled')[1].trim();
-  output.note({
-    title: `Nx Cloud has been enabled`,
-    bodyLines: bodyLines.split('\n').map((r) => r.trim()),
-  });
-}
-
-function mapErrorToBodyLines(error: {
-  logMessage: string;
-  code: number;
-  logFile: string;
-}): string[] {
-  if (error.logMessage.split('\n').filter((line) => !!line).length === 1) {
-    // print entire log message only if it's only a single message
-    return [`Error: ${error.logMessage}`];
-  }
-  const lines = [`Exit code: ${error.code}`, `Log file: ${error.logFile}`];
-  if (process.env.NX_VERBOSE_LOGGING) {
-    lines.push(`Error: ${error.logMessage}`);
-  }
-  return lines;
-}
-
-function execAndWait(command: string, cwd: string) {
-  return new Promise((res, rej) => {
-    exec(command, { cwd }, (error, stdout, stderr) => {
-      if (error) {
-        const logFile = path.join(cwd, 'error.log');
-        writeFileSync(logFile, `${stdout}\n${stderr}`);
-        rej({ code: error.code, logFile, logMessage: stderr });
-      } else {
-        res({ code: 0, stdout });
-      }
-    });
-  });
-}
-
-async function askAboutNxCloud(parsedArgs: any) {
-  if (parsedArgs.nxCloud === undefined) {
-    return enquirer
-      .prompt([
-        {
-          name: 'NxCloud',
-          message: `Use Nx Cloud? (It's free and doesn't require registration.)`,
-          type: 'select',
-          choices: [
-            {
-              name: 'Yes',
-              hint: 'Faster builds, run details, GitHub integration. Learn more at https://nx.app',
-            },
-
-            {
-              name: 'No',
-            },
-          ],
-          initial: 'No' as any,
-        },
-      ])
-      .then((a: { NxCloud: 'Yes' | 'No' }) => a.NxCloud === 'Yes');
+  if (parsedArgs.preset && parsedArgs.preset !== Preset.React) {
+    preset = parsedArgs.preset;
+    if (
+      preset === Preset.ReactStandalone ||
+      preset === Preset.NextJsStandalone ||
+      preset === Preset.RemixStandalone
+    ) {
+      appName = parsedArgs.appName ?? parsedArgs.name;
+    } else {
+      appName = await determineAppName(parsedArgs);
+    }
   } else {
-    return parsedArgs.nxCloud;
+    const framework = await determineReactFramework(parsedArgs);
+
+    // React Native and Expo only support integrated monorepos for now.
+    // TODO(jack): Add standalone support for React Native and Expo.
+    const workspaceType =
+      framework === 'react-native' || framework === 'expo'
+        ? 'integrated'
+        : await determineStandaloneOrMonorepo();
+
+    if (workspaceType === 'standalone') {
+      appName = parsedArgs.name;
+    } else {
+      appName = await determineAppName(parsedArgs);
+    }
+
+    if (framework === 'nextjs') {
+      if (workspaceType === 'standalone') {
+        preset = Preset.NextJsStandalone;
+      } else {
+        preset = Preset.NextJs;
+      }
+    } else if (framework === 'remix') {
+      if (workspaceType === 'standalone') {
+        preset = Preset.RemixStandalone;
+      } else {
+        preset = Preset.RemixMonorepo;
+      }
+    } else if (framework === 'react-native') {
+      preset = Preset.ReactNative;
+    } else if (framework === 'expo') {
+      preset = Preset.Expo;
+    } else {
+      if (workspaceType === 'standalone') {
+        preset = Preset.ReactStandalone;
+      } else {
+        preset = Preset.ReactMonorepo;
+      }
+    }
   }
-}
 
-function pointToTutorialAndCourse(preset: Preset) {
-  const title = `First time using Nx? Check out this interactive Nx tutorial.`;
-  switch (preset) {
-    case Preset.Empty:
-    case Preset.NPM:
-    case Preset.Apps:
-    case Preset.Core:
-      output.addVerticalSeparator();
-      output.note({
-        title,
-        bodyLines: [`https://nx.dev/getting-started/nx-core`],
-      });
-      break;
-
-    case Preset.TS:
-      output.addVerticalSeparator();
-      output.note({
-        title,
-        bodyLines: [`https://nx.dev/getting-started/nx-and-typescript`],
-      });
-      break;
-
-    case Preset.React:
-    case Preset.ReactWithExpress:
-    case Preset.NextJs:
-    case Preset.Gatsby:
-      output.addVerticalSeparator();
-      output.note({
-        title,
-        bodyLines: [
-          `https://nx.dev/react-tutorial/01-create-application`,
-          ...pointToFreeCourseOnEgghead(),
-        ],
-      });
-      break;
-    case Preset.Angular:
-    case Preset.AngularWithNest:
-      output.addVerticalSeparator();
-      output.note({
-        title,
-        bodyLines: [
-          `https://nx.dev/angular-tutorial/01-create-application`,
-          ...pointToFreeCourseOnYoutube(),
-        ],
-      });
-      break;
-    case Preset.Nest:
-      output.addVerticalSeparator();
-      output.note({
-        title,
-        bodyLines: [
-          `https://nx.dev/node-tutorial/01-create-application`,
-          ...pointToFreeCourseOnYoutube(),
-        ],
-      });
-      break;
+  if (preset === Preset.ReactStandalone || preset === Preset.ReactMonorepo) {
+    bundler = await determineReactBundler(parsedArgs);
+    e2eTestRunner = await determineE2eTestRunner(parsedArgs);
+  } else if (preset === Preset.NextJs || preset === Preset.NextJsStandalone) {
+    nextAppDir = await determineNextAppDir(parsedArgs);
+    nextSrcDir = await determineNextSrcDir(parsedArgs);
+    e2eTestRunner = await determineE2eTestRunner(parsedArgs);
+  } else if (
+    preset === Preset.RemixMonorepo ||
+    preset === Preset.RemixStandalone
+  ) {
+    e2eTestRunner = await determineE2eTestRunner(parsedArgs);
   }
+
+  if (parsedArgs.style) {
+    style = parsedArgs.style;
+  } else if (
+    preset === Preset.ReactStandalone ||
+    preset === Preset.ReactMonorepo ||
+    preset === Preset.NextJs ||
+    preset === Preset.NextJsStandalone
+  ) {
+    const reply = await enquirer.prompt<{ style: string }>([
+      {
+        name: 'style',
+        message: `Default stylesheet format`,
+        initial: 0,
+        type: 'autocomplete',
+        choices: [
+          {
+            name: 'css',
+            message: 'CSS',
+          },
+          {
+            name: 'scss',
+            message: 'SASS(.scss)       [ https://sass-lang.com   ]',
+          },
+          {
+            name: 'less',
+            message: 'LESS              [ https://lesscss.org     ]',
+          },
+          {
+            name: 'tailwind',
+            message: 'tailwind          [ https://tailwindcss.com     ]',
+          },
+          {
+            name: 'styled-components',
+            message:
+              'styled-components [ https://styled-components.com            ]',
+          },
+          {
+            name: '@emotion/styled',
+            message:
+              'emotion           [ https://emotion.sh                       ]',
+          },
+          {
+            name: 'styled-jsx',
+            message:
+              'styled-jsx        [ https://www.npmjs.com/package/styled-jsx ]',
+          },
+        ],
+      },
+    ]);
+    style = reply.style;
+  }
+
+  return {
+    preset,
+    style,
+    appName,
+    bundler,
+    nextAppDir,
+    nextSrcDir,
+    e2eTestRunner,
+  };
 }
 
-function pointToFreeCourseOnYoutube(): string[] {
-  return [
-    ``,
-    `Prefer watching videos? Check out this free Nx course on YouTube.`,
-    `https://www.youtube.com/watch?v=2mYLe9Kp9VM&list=PLakNactNC1dH38AfqmwabvOszDmKriGco`,
-  ];
+async function determineVueOptions(
+  parsedArgs: yargs.Arguments<VueArguments>
+): Promise<Partial<Arguments>> {
+  let preset: Preset;
+  let style: undefined | string = undefined;
+  let appName: string;
+  let e2eTestRunner: undefined | 'none' | 'cypress' | 'playwright' = undefined;
+
+  if (parsedArgs.preset && parsedArgs.preset !== Preset.Vue) {
+    preset = parsedArgs.preset;
+    if (preset === Preset.VueStandalone || preset === Preset.NuxtStandalone) {
+      appName = parsedArgs.appName ?? parsedArgs.name;
+    } else {
+      appName = await determineAppName(parsedArgs);
+    }
+  } else {
+    const framework = await determineVueFramework(parsedArgs);
+
+    const workspaceType = await determineStandaloneOrMonorepo();
+    if (workspaceType === 'standalone') {
+      appName = parsedArgs.appName ?? parsedArgs.name;
+    } else {
+      appName = await determineAppName(parsedArgs);
+    }
+
+    if (framework === 'nuxt') {
+      if (workspaceType === 'standalone') {
+        preset = Preset.NuxtStandalone;
+      } else {
+        preset = Preset.Nuxt;
+      }
+    } else {
+      if (workspaceType === 'standalone') {
+        preset = Preset.VueStandalone;
+      } else {
+        preset = Preset.VueMonorepo;
+      }
+    }
+  }
+
+  e2eTestRunner = await determineE2eTestRunner(parsedArgs);
+
+  if (parsedArgs.style) {
+    style = parsedArgs.style;
+  } else {
+    const reply = await enquirer.prompt<{ style: string }>([
+      {
+        name: 'style',
+        message: `Default stylesheet format`,
+        initial: 0,
+        type: 'autocomplete',
+        choices: [
+          {
+            name: 'css',
+            message: 'CSS',
+          },
+          {
+            name: 'scss',
+            message: 'SASS(.scss)       [ https://sass-lang.com   ]',
+          },
+          {
+            name: 'less',
+            message: 'LESS              [ https://lesscss.org     ]',
+          },
+          {
+            name: 'none',
+            message: 'None',
+          },
+        ],
+      },
+    ]);
+    style = reply.style;
+  }
+
+  return { preset, style, appName, e2eTestRunner };
 }
 
-function pointToFreeCourseOnEgghead(): string[] {
-  return [
-    ``,
-    `Prefer watching videos? Check out this free Nx course on Egghead.io.`,
-    `https://egghead.io/playlists/scale-react-development-with-nx-4038`,
-  ];
+async function determineAngularOptions(
+  parsedArgs: yargs.Arguments<AngularArguments>
+): Promise<Partial<Arguments>> {
+  let preset: Preset;
+  let style: string;
+  let appName: string;
+  let e2eTestRunner: undefined | 'none' | 'cypress' | 'playwright' = undefined;
+  let bundler: undefined | 'webpack' | 'esbuild' = undefined;
+  let ssr: undefined | boolean = undefined;
+
+  const standaloneApi = parsedArgs.standaloneApi;
+  const routing = parsedArgs.routing;
+  const prefix = parsedArgs.prefix;
+
+  if (prefix) {
+    // https://github.com/angular/angular-cli/blob/main/packages/schematics/angular/utility/validation.ts#L11-L14
+    const htmlSelectorRegex =
+      /^[a-zA-Z][.0-9a-zA-Z]*((:?-[0-9]+)*|(:?-[a-zA-Z][.0-9a-zA-Z]*(:?-[0-9]+)*)*)$/;
+
+    // validate whether component/directive selectors will be valid with the provided prefix
+    if (!htmlSelectorRegex.test(`${prefix}-placeholder`)) {
+      output.error({
+        title: `Failed to create a workspace.`,
+        bodyLines: [
+          `The provided "${prefix}" prefix is invalid. It must be a valid HTML selector.`,
+        ],
+      });
+
+      process.exit(1);
+    }
+  }
+
+  if (parsedArgs.preset && parsedArgs.preset !== Preset.Angular) {
+    preset = parsedArgs.preset;
+
+    if (preset === Preset.AngularStandalone) {
+      appName = parsedArgs.name;
+    } else {
+      appName = await determineAppName(parsedArgs);
+    }
+  } else {
+    const workspaceType = await determineStandaloneOrMonorepo();
+
+    if (workspaceType === 'standalone') {
+      preset = Preset.AngularStandalone;
+      appName = parsedArgs.name;
+    } else {
+      preset = Preset.AngularMonorepo;
+      appName = await determineAppName(parsedArgs);
+    }
+  }
+
+  if (parsedArgs.bundler) {
+    bundler = parsedArgs.bundler;
+  } else {
+    const reply = await enquirer.prompt<{ bundler: 'esbuild' | 'webpack' }>([
+      {
+        name: 'bundler',
+        message: `Which bundler would you like to use?`,
+        type: 'autocomplete',
+        choices: [
+          {
+            name: 'esbuild',
+            message: 'esbuild [ https://esbuild.github.io/ ]',
+          },
+          {
+            name: 'webpack',
+            message: 'Webpack [ https://webpack.js.org/ ]',
+          },
+        ],
+        initial: 0,
+      },
+    ]);
+    bundler = reply.bundler;
+  }
+
+  if (parsedArgs.style) {
+    style = parsedArgs.style;
+  } else {
+    const reply = await enquirer.prompt<{ style: string }>([
+      {
+        name: 'style',
+        message: `Default stylesheet format`,
+        initial: 0,
+        type: 'autocomplete',
+        choices: [
+          {
+            name: 'css',
+            message: 'CSS',
+          },
+          {
+            name: 'scss',
+            message: 'SASS(.scss)       [ https://sass-lang.com   ]',
+          },
+          {
+            name: 'less',
+            message: 'LESS              [ https://lesscss.org     ]',
+          },
+        ],
+      },
+    ]);
+    style = reply.style;
+  }
+
+  if (parsedArgs.ssr !== undefined) {
+    ssr = parsedArgs.ssr;
+  } else {
+    const reply = await enquirer.prompt<{ ssr: 'Yes' | 'No' }>([
+      {
+        name: 'ssr',
+        message:
+          'Do you want to enable Server-Side Rendering (SSR) and Static Site Generation (SSG/Prerendering)?',
+        type: 'autocomplete',
+        choices: [{ name: 'Yes' }, { name: 'No' }],
+        initial: 1,
+      },
+    ]);
+    ssr = reply.ssr === 'Yes';
+  }
+
+  e2eTestRunner = await determineE2eTestRunner(parsedArgs);
+
+  return {
+    preset,
+    style,
+    appName,
+    standaloneApi,
+    routing,
+    e2eTestRunner,
+    bundler,
+    ssr,
+    prefix,
+  };
+}
+
+async function determineNodeOptions(
+  parsedArgs: yargs.Arguments<NodeArguments>
+): Promise<Partial<Arguments>> {
+  let preset: Preset;
+  let appName: string;
+  let framework: 'express' | 'fastify' | 'koa' | 'nest' | 'none';
+  let docker: boolean;
+
+  if (parsedArgs.preset) {
+    preset = parsedArgs.preset;
+
+    if (
+      preset === Preset.Nest ||
+      preset === Preset.Express ||
+      preset === Preset.NodeMonorepo
+    ) {
+      appName = await determineAppName(parsedArgs);
+    } else {
+      appName = parsedArgs.name;
+    }
+
+    if (preset === Preset.NodeStandalone || preset === Preset.NodeMonorepo) {
+      framework = await determineNodeFramework(parsedArgs);
+    } else {
+      framework = 'none';
+    }
+  } else {
+    framework = await determineNodeFramework(parsedArgs);
+
+    const workspaceType = await determineStandaloneOrMonorepo();
+    if (workspaceType === 'standalone') {
+      preset = Preset.NodeStandalone;
+      appName = parsedArgs.name;
+    } else {
+      preset = Preset.NodeMonorepo;
+      appName = await determineAppName(parsedArgs);
+    }
+  }
+
+  if (parsedArgs.docker !== undefined) {
+    docker = parsedArgs.docker;
+  } else {
+    const reply = await enquirer.prompt<{ docker: 'Yes' | 'No' }>([
+      {
+        name: 'docker',
+        message:
+          'Would you like to generate a Dockerfile? [https://docs.docker.com/]',
+        type: 'autocomplete',
+        choices: [
+          {
+            name: 'Yes',
+            hint: 'I want to generate a Dockerfile',
+          },
+          {
+            name: 'No',
+          },
+        ],
+        initial: 1,
+      },
+    ]);
+    docker = reply.docker === 'Yes';
+  }
+
+  return {
+    preset,
+    appName,
+    framework,
+    docker,
+  };
+}
+
+async function determinePackageBasedOrIntegratedOrStandalone(): Promise<
+  'package-based' | 'integrated' | 'standalone'
+> {
+  const { workspaceType } = await enquirer.prompt<{
+    workspaceType: 'standalone' | 'integrated' | 'package-based';
+  }>([
+    {
+      type: 'autocomplete',
+      name: 'workspaceType',
+      message: `Package-based monorepo, integrated monorepo, or standalone project?`,
+      initial: 0,
+      choices: [
+        {
+          name: 'package-based',
+          message:
+            'Package-based Monorepo:     Nx makes it fast, but lets you run things your way.',
+        },
+        {
+          name: 'integrated',
+          message:
+            'Integrated Monorepo:        Nx creates a monorepo that contains multiple projects.',
+        },
+        {
+          name: 'standalone',
+          message:
+            'Standalone:                 Nx creates a single project and makes it fast.',
+        },
+      ],
+    },
+  ]);
+
+  invariant(workspaceType, {
+    title: 'Invalid workspace type',
+    bodyLines: [
+      `It must be one of the following: standalone, integrated. Got ${workspaceType}`,
+    ],
+  });
+
+  return workspaceType;
+}
+
+async function determineStandaloneOrMonorepo(): Promise<
+  'integrated' | 'standalone'
+> {
+  const { workspaceType } = await enquirer.prompt<{
+    workspaceType: 'standalone' | 'integrated';
+  }>([
+    {
+      type: 'autocomplete',
+      name: 'workspaceType',
+      message: `Integrated monorepo, or standalone project?`,
+      initial: 1,
+      choices: [
+        {
+          name: 'integrated',
+          message:
+            'Integrated Monorepo:  Nx creates a monorepo that contains multiple projects.',
+        },
+        {
+          name: 'standalone',
+          message:
+            'Standalone:           Nx creates a single project and makes it fast.',
+        },
+      ],
+    },
+  ]);
+
+  invariant(workspaceType, {
+    title: 'Invalid workspace type',
+    bodyLines: [
+      `It must be one of the following: standalone, integrated. Got ${workspaceType}`,
+    ],
+  });
+
+  return workspaceType;
+}
+
+async function determineAppName(
+  parsedArgs: yargs.Arguments<
+    ReactArguments | AngularArguments | NodeArguments | VueArguments
+  >
+): Promise<string> {
+  if (parsedArgs.appName) return parsedArgs.appName;
+
+  const { appName } = await enquirer.prompt<{ appName: string }>([
+    {
+      name: 'appName',
+      message: `Application name`,
+      type: 'input',
+      initial: parsedArgs.name,
+    },
+  ]);
+  invariant(appName, {
+    title: 'Invalid name',
+    bodyLines: [`Name cannot be empty`],
+  });
+  return appName;
+}
+
+async function determineReactFramework(
+  parsedArgs: yargs.Arguments<ReactArguments>
+): Promise<'none' | 'nextjs' | 'remix' | 'expo' | 'react-native'> {
+  const reply = await enquirer.prompt<{
+    framework: 'none' | 'nextjs' | 'remix' | 'expo' | 'react-native';
+  }>([
+    {
+      name: 'framework',
+      message: 'What framework would you like to use?',
+      type: 'autocomplete',
+      choices: [
+        {
+          name: 'none',
+          message: 'None',
+          hint: '         I only want react and react-dom',
+        },
+        {
+          name: 'nextjs',
+          message: 'Next.js       [ https://nextjs.org/      ]',
+        },
+        {
+          name: 'remix',
+          message: 'Remix         [ https://remix.run/       ]',
+        },
+        {
+          name: 'expo',
+          message: 'Expo          [ https://expo.io/         ]',
+        },
+        {
+          name: 'react-native',
+          message: 'React Native  [ https://reactnative.dev/ ]',
+        },
+      ],
+      initial: 0,
+    },
+  ]);
+  return reply.framework;
+}
+
+async function determineReactBundler(
+  parsedArgs: yargs.Arguments<ReactArguments>
+): Promise<'webpack' | 'vite' | 'rspack'> {
+  if (parsedArgs.bundler) return parsedArgs.bundler;
+  const reply = await enquirer.prompt<{
+    bundler: 'webpack' | 'vite' | 'rspack';
+  }>([
+    {
+      name: 'bundler',
+      message: `Which bundler would you like to use?`,
+      type: 'autocomplete',
+      choices: [
+        {
+          name: 'vite',
+          message: 'Vite    [ https://vitejs.dev/     ]',
+        },
+        {
+          name: 'webpack',
+          message: 'Webpack [ https://webpack.js.org/ ]',
+        },
+        {
+          name: 'rspack',
+          message: 'Rspack  [ https://www.rspack.dev/ ]',
+        },
+      ],
+    },
+  ]);
+  return reply.bundler;
+}
+
+async function determineNextAppDir(
+  parsedArgs: yargs.Arguments<ReactArguments>
+): Promise<boolean> {
+  if (parsedArgs.nextAppDir !== undefined) return parsedArgs.nextAppDir;
+  const reply = await enquirer.prompt<{ nextAppDir: 'Yes' | 'No' }>([
+    {
+      name: 'nextAppDir',
+      message: 'Would you like to use the App Router (recommended)?',
+      type: 'autocomplete',
+      choices: [
+        {
+          name: 'Yes',
+        },
+        {
+          name: 'No',
+        },
+      ],
+      initial: 0,
+    },
+  ]);
+  return reply.nextAppDir === 'Yes';
+}
+
+async function determineNextSrcDir(
+  parsedArgs: yargs.Arguments<ReactArguments>
+): Promise<boolean> {
+  if (parsedArgs.nextSrcDir !== undefined) return parsedArgs.nextSrcDir;
+  const reply = await enquirer.prompt<{ nextSrcDir: 'Yes' | 'No' }>([
+    {
+      name: 'nextSrcDir',
+      message: 'Would you like to use the src/ directory?',
+      type: 'autocomplete',
+      choices: [
+        {
+          name: 'Yes',
+        },
+        {
+          name: 'No',
+        },
+      ],
+      initial: 0,
+    },
+  ]);
+  return reply.nextSrcDir === 'Yes';
+}
+
+async function determineVueFramework(
+  parsedArgs: yargs.Arguments<VueArguments>
+): Promise<'none' | 'nuxt'> {
+  if (!!parsedArgs.framework) return parsedArgs.framework;
+  const reply = await enquirer.prompt<{
+    framework: 'none' | 'nuxt';
+  }>([
+    {
+      name: 'framework',
+      message: 'What framework would you like to use?',
+      type: 'autocomplete',
+      choices: [
+        {
+          name: 'none',
+          message: 'None',
+          hint: '         I only want Vue',
+        },
+        {
+          name: 'nuxt',
+          message: 'Nuxt          [ https://nuxt.com/ ]',
+        },
+      ],
+      initial: 0,
+    },
+  ]);
+  return reply.framework;
+}
+
+async function determineNodeFramework(
+  parsedArgs: yargs.Arguments<NodeArguments>
+): Promise<'express' | 'fastify' | 'koa' | 'nest' | 'none'> {
+  if (parsedArgs.framework) return parsedArgs.framework;
+  const reply = await enquirer.prompt<{
+    framework: 'express' | 'fastify' | 'koa' | 'nest' | 'none';
+  }>([
+    {
+      message: 'What framework should be used?',
+      type: 'autocomplete',
+      name: 'framework',
+      choices: [
+        {
+          name: 'none',
+          message: 'None',
+        },
+        {
+          name: 'express',
+          message: 'Express [ https://expressjs.com/ ]',
+        },
+        {
+          name: 'fastify',
+          message: 'Fastify [ https://www.fastify.dev/ ]',
+        },
+        {
+          name: 'koa',
+          message: 'Koa     [ https://koajs.com/      ]',
+        },
+        {
+          name: 'nest',
+          message: 'NestJs  [ https://nestjs.com/     ]',
+        },
+      ],
+    },
+  ]);
+  return reply.framework;
+}
+
+async function determineE2eTestRunner(
+  parsedArgs: yargs.Arguments<{
+    e2eTestRunner?: 'none' | 'cypress' | 'playwright';
+  }>
+): Promise<'none' | 'cypress' | 'playwright'> {
+  if (parsedArgs.e2eTestRunner) return parsedArgs.e2eTestRunner;
+  const reply = await enquirer.prompt<{
+    e2eTestRunner: 'none' | 'cypress' | 'playwright';
+  }>([
+    {
+      message: 'Test runner to use for end to end (E2E) tests',
+      type: 'autocomplete',
+      name: 'e2eTestRunner',
+      choices: [
+        {
+          name: 'playwright',
+          message: 'Playwright [ https://playwright.dev/ ]',
+        },
+        {
+          name: 'cypress',
+          message: 'Cypress [ https://www.cypress.io/ ]',
+        },
+        {
+          name: 'none',
+          message: 'None',
+        },
+      ],
+    },
+  ]);
+  return reply.e2eTestRunner;
 }

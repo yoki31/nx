@@ -1,29 +1,39 @@
-import type { GeneratorCallback, Tree } from '@nrwl/devkit';
-import { convertNxGenerator, formatFiles } from '@nrwl/devkit';
-import { libraryGenerator as nodeLibraryGenerator } from '@nrwl/node';
-import { runTasksInSerial } from '@nrwl/workspace/src/utilities/run-tasks-in-serial';
-import { addDependencies } from '../init/lib';
+import type { GeneratorCallback, Tree } from '@nx/devkit';
+import { formatFiles, runTasksInSerial } from '@nx/devkit';
+import { libraryGenerator as jsLibraryGenerator } from '@nx/js';
 import {
   addExportsToBarrelFile,
   addProject,
   createFiles,
   deleteFiles,
   normalizeOptions,
-  toNodeLibraryGeneratorOptions,
+  toJsLibraryGeneratorOptions,
   updateTsConfig,
 } from './lib';
 import type { LibraryGeneratorOptions } from './schema';
+import initGenerator from '../init/init';
+import { logShowProjectCommand } from '@nx/devkit/src/utils/log-show-project-command';
+import { ensureDependencies } from '../../utils/ensure-dependencies';
 
 export async function libraryGenerator(
   tree: Tree,
   rawOptions: LibraryGeneratorOptions
 ): Promise<GeneratorCallback> {
-  const options = normalizeOptions(tree, rawOptions);
-  const nodeLibraryTask = await nodeLibraryGenerator(
-    tree,
-    toNodeLibraryGeneratorOptions(options)
-  );
-  const installDepsTask = addDependencies(tree);
+  return await libraryGeneratorInternal(tree, {
+    addPlugin: false,
+    projectNameAndRootFormat: 'derived',
+    ...rawOptions,
+  });
+}
+
+export async function libraryGeneratorInternal(
+  tree: Tree,
+  rawOptions: LibraryGeneratorOptions
+): Promise<GeneratorCallback> {
+  const options = await normalizeOptions(tree, rawOptions);
+  await jsLibraryGenerator(tree, toJsLibraryGeneratorOptions(options));
+  const initTask = await initGenerator(tree, rawOptions);
+  const depsTask = ensureDependencies(tree);
   deleteFiles(tree, options);
   createFiles(tree, options);
   addExportsToBarrelFile(tree, options);
@@ -34,9 +44,15 @@ export async function libraryGenerator(
     await formatFiles(tree);
   }
 
-  return runTasksInSerial(nodeLibraryTask, installDepsTask);
+  return runTasksInSerial(
+    ...[
+      initTask,
+      depsTask,
+      () => {
+        logShowProjectCommand(options.projectName);
+      },
+    ]
+  );
 }
 
 export default libraryGenerator;
-
-export const librarySchematic = convertNxGenerator(libraryGenerator);

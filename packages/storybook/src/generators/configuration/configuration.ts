@@ -1,90 +1,278 @@
 import {
-  convertNxGenerator,
+  addDependenciesToPackageJson,
   formatFiles,
-  generateFiles,
   GeneratorCallback,
-  joinPathFragments,
   logger,
-  offsetFromRoot,
-  readJson,
+  readNxJson,
   readProjectConfiguration,
-  toJS,
+  runTasksInSerial,
   Tree,
-  updateJson,
-  updateProjectConfiguration,
-  writeJson,
-} from '@nrwl/devkit';
-import { runTasksInSerial } from '@nrwl/workspace/src/utilities/run-tasks-in-serial';
+} from '@nx/devkit';
+import { initGenerator as jsInitGenerator } from '@nx/js';
 
-import { Linter } from '@nrwl/linter';
-import { join } from 'path';
-
-import {
-  isFramework,
-  readCurrentWorkspaceStorybookVersionFromGenerator,
-  TsConfig,
-} from '../../utils/utilities';
 import { cypressProjectGenerator } from '../cypress-project/cypress-project';
 import { StorybookConfigureSchema } from './schema';
-import { storybookVersion } from '../../utils/versions';
 import { initGenerator } from '../init/init';
-import { checkAndCleanWithSemver } from '@nrwl/workspace/src/utilities/version-utils';
-import { gte } from 'semver';
 
-export async function configurationGenerator(
+import {
+  addAngularStorybookTarget,
+  addBuildStorybookToCacheableOperations,
+  addStaticTarget,
+  addStorybookTarget,
+  addStorybookToNamedInputs,
+  addStorybookToTargetDefaults,
+  configureTsProjectConfig,
+  configureTsSolutionConfig,
+  createProjectStorybookDir,
+  createStorybookTsconfigFile,
+  editTsconfigBaseJson,
+  findMetroConfig,
+  findNextConfig,
+  findViteConfig,
+  getE2EProjectName,
+  projectIsRootProjectInStandaloneWorkspace,
+  updateLintConfig,
+} from './lib/util-functions';
+import { Linter } from '@nx/eslint';
+import {
+  findStorybookAndBuildTargetsAndCompiler,
+  pleaseUpgrade,
+  storybookMajorVersion,
+} from '../../utils/utilities';
+import {
+  coreJsVersion,
+  nxVersion,
+  storybookVersion,
+  tsLibVersion,
+  tsNodeVersion,
+} from '../../utils/versions';
+import { interactionTestsDependencies } from './lib/interaction-testing.utils';
+import { ensureDependencies } from './lib/ensure-dependencies';
+import { editRootTsConfig } from './lib/edit-root-tsconfig';
+
+export function configurationGenerator(
+  tree: Tree,
+  schema: StorybookConfigureSchema
+) {
+  return configurationGeneratorInternal(tree, { addPlugin: false, ...schema });
+}
+
+export async function configurationGeneratorInternal(
   tree: Tree,
   rawSchema: StorybookConfigureSchema
 ) {
-  const schema = normalizeSchema(rawSchema);
+  if (storybookMajorVersion() === 6) {
+    throw new Error(pleaseUpgrade());
+  }
+
+  const schema = normalizeSchema(tree, rawSchema);
 
   const tasks: GeneratorCallback[] = [];
 
-  const workspaceStorybookVersion = getCurrentWorkspaceStorybookVersion(tree);
+  const { projectType, targets, root } = readProjectConfiguration(
+    tree,
+    schema.project
+  );
+  const { compiler } = findStorybookAndBuildTargetsAndCompiler(targets);
 
-  const { projectType } = readProjectConfiguration(tree, schema.name);
+  const viteConfig = findViteConfig(tree, root);
+  const viteConfigFilePath = viteConfig?.fullConfigPath;
+  const viteConfigFileName = viteConfig?.viteConfigFileName;
+  const nextConfigFilePath = findNextConfig(tree, root);
+  const metroConfigFilePath = findMetroConfig(tree, root);
 
+  if (viteConfigFilePath) {
+    if (schema.uiFramework === '@storybook/react-webpack5') {
+      logger.info(
+        `Your project ${schema.project} uses Vite as a bundler.
+        Nx will configure Storybook for this project to use Vite as well.`
+      );
+      schema.uiFramework = '@storybook/react-vite';
+    }
+    if (schema.uiFramework === '@storybook/web-components-webpack5') {
+      logger.info(
+        `Your project ${schema.project} uses Vite as a bundler.
+        Nx will configure Storybook for this project to use Vite as well.`
+      );
+      schema.uiFramework = '@storybook/web-components-vite';
+    }
+  }
+
+  if (nextConfigFilePath) {
+    schema.uiFramework = '@storybook/nextjs';
+  }
+
+  const jsInitTask = await jsInitGenerator(tree, {
+    ...schema,
+    skipFormat: true,
+  });
+  tasks.push(jsInitTask);
   const initTask = await initGenerator(tree, {
-    uiFramework: schema.uiFramework,
+    skipFormat: true,
+    addPlugin: schema.addPlugin,
   });
   tasks.push(initTask);
+  tasks.push(ensureDependencies(tree, { uiFramework: schema.uiFramework }));
 
-  createRootStorybookDir(tree, schema.js, workspaceStorybookVersion);
+  editRootTsConfig(tree);
+
+  const nxJson = readNxJson(tree);
+  const hasPlugin = nxJson.plugins?.some((p) =>
+    typeof p === 'string'
+      ? p === '@nx/storybook/plugin'
+      : p.plugin === '@nx/storybook/plugin'
+  );
+
+  const mainDir =
+    !!nextConfigFilePath && projectType === 'application'
+      ? 'components'
+      : 'src';
+
+  const usesVite =
+    !!viteConfigFilePath || schema.uiFramework?.endsWith('-vite');
+  const useReactNative = !!metroConfigFilePath;
+
   createProjectStorybookDir(
     tree,
-    schema.name,
+    schema.project,
     schema.uiFramework,
     schema.js,
-    workspaceStorybookVersion
+    schema.tsConfiguration,
+    root,
+    projectType,
+    projectIsRootProjectInStandaloneWorkspace(root),
+    schema.interactionTests,
+    mainDir,
+    !!nextConfigFilePath,
+    compiler === 'swc',
+    usesVite,
+    viteConfigFilePath,
+    hasPlugin,
+    viteConfigFileName,
+    useReactNative
   );
+
+  if (schema.uiFramework !== '@storybook/angular') {
+    createStorybookTsconfigFile(
+      tree,
+      root,
+      schema.uiFramework,
+      projectIsRootProjectInStandaloneWorkspace(root),
+      mainDir
+    );
+  }
   configureTsProjectConfig(tree, schema);
+  editTsconfigBaseJson(tree);
   configureTsSolutionConfig(tree, schema);
   updateLintConfig(tree, schema);
-  addStorybookTask(tree, schema.name, schema.uiFramework);
+
+  addBuildStorybookToCacheableOperations(tree);
+  addStorybookToNamedInputs(tree);
+  if (!hasPlugin) {
+    addStorybookToTargetDefaults(tree);
+  }
+
+  let devDeps = {};
+
+  if (!hasPlugin || schema.addExplicitTargets) {
+    if (schema.uiFramework === '@storybook/angular') {
+      addAngularStorybookTarget(tree, schema.project, schema.interactionTests);
+    } else {
+      addStorybookTarget(
+        tree,
+        schema.project,
+        schema.uiFramework,
+        schema.interactionTests
+      );
+    }
+    if (schema.configureStaticServe) {
+      await addStaticTarget(tree, schema);
+    }
+  } else {
+    devDeps['storybook'] = storybookVersion;
+  }
+
+  // TODO(katerina): Nx 19 -> remove Cypress
   if (schema.configureCypress) {
-    if (projectType !== 'application') {
+    const e2eProject = await getE2EProjectName(tree, schema.project);
+    if (!e2eProject) {
       const cypressTask = await cypressProjectGenerator(tree, {
-        name: schema.name,
+        name: schema.project,
         js: schema.js,
         linter: schema.linter,
         directory: schema.cypressDirectory,
         standaloneConfig: schema.standaloneConfig,
+        ciTargetName: schema.configureStaticServe
+          ? 'static-storybook'
+          : undefined,
+        skipFormat: true,
       });
       tasks.push(cypressTask);
     } else {
-      logger.warn('There is already an e2e project setup');
+      logger.warn(
+        `There is already an e2e project setup for ${schema.project}, called ${e2eProject}.`
+      );
     }
   }
 
-  await formatFiles(tree);
+  if (schema.tsConfiguration) {
+    devDeps['ts-node'] = tsNodeVersion;
+  }
+
+  if (usesVite && !viteConfigFilePath) {
+    devDeps['tslib'] = tsLibVersion;
+  }
+
+  if (schema.interactionTests) {
+    devDeps = {
+      ...devDeps,
+      ...interactionTestsDependencies(),
+    };
+  }
+
+  if (schema.configureStaticServe) {
+    devDeps['@nx/web'] = nxVersion;
+  }
+
+  if (
+    projectType !== 'application' &&
+    schema.uiFramework === '@storybook/react-webpack5'
+  ) {
+    devDeps['core-js'] = coreJsVersion;
+  }
+
+  if (schema.uiFramework?.endsWith('-vite') && !viteConfigFilePath) {
+    // This means that the user has selected a Vite framework
+    // but the project does not have Vite configuration.
+    // We need to install the @nx/vite plugin in order to be able to use
+    // the nxViteTsPaths plugin to register the tsconfig paths in Vite.
+    devDeps['@nx/vite'] = nxVersion;
+  }
+
+  tasks.push(addDependenciesToPackageJson(tree, {}, devDeps));
+
+  if (!schema.skipFormat) {
+    await formatFiles(tree);
+  }
 
   return runTasksInSerial(...tasks);
 }
 
-function normalizeSchema(schema: StorybookConfigureSchema) {
+function normalizeSchema(
+  tree: Tree,
+  schema: StorybookConfigureSchema
+): StorybookConfigureSchema {
+  const nxJson = readNxJson(tree);
+  const addPlugin =
+    process.env.NX_ADD_PLUGINS !== 'false' &&
+    nxJson.useInferencePlugins !== false;
+
   const defaults = {
-    configureCypress: true,
-    linter: Linter.TsLint,
+    interactionTests: true,
+    linter: Linter.EsLint,
     js: false,
+    tsConfiguration: true,
+    addPlugin,
   };
   return {
     ...defaults,
@@ -92,268 +280,4 @@ function normalizeSchema(schema: StorybookConfigureSchema) {
   };
 }
 
-function createRootStorybookDir(
-  tree: Tree,
-  js: boolean,
-  workspaceStorybookVersion: string
-) {
-  if (tree.exists('.storybook')) {
-    logger.warn(
-      `.storybook folder already exists at root! Skipping generating files in it.`
-    );
-    return;
-  }
-  logger.debug(
-    `adding .storybook folder to the root directory - 
-     based on the Storybook version installed (v${workspaceStorybookVersion}), we'll bootstrap a scaffold for that particular version.`
-  );
-  const templatePath = join(
-    __dirname,
-    workspaceStorybookVersion === '6' ? './root-files' : './root-files-5'
-  );
-  generateFiles(tree, templatePath, '', {});
-
-  if (js) {
-    toJS(tree);
-  }
-}
-
-function createProjectStorybookDir(
-  tree: Tree,
-  projectName: string,
-  uiFramework: StorybookConfigureSchema['uiFramework'],
-  js: boolean,
-  workspaceStorybookVersion: string
-) {
-  /**
-   * Here, same as above
-   * Check storybook version
-   * and use the correct folder
-   * lib-files-5 or lib-files-6
-   */
-
-  const { root, projectType } = readProjectConfiguration(tree, projectName);
-  const projectDirectory = projectType === 'application' ? 'app' : 'lib';
-
-  const storybookRoot = join(root, '.storybook');
-
-  if (tree.exists(storybookRoot)) {
-    logger.warn(
-      `.storybook folder already exists for ${projectName}! Skipping generating files in it.`
-    );
-    return;
-  }
-
-  logger.debug(
-    `adding .storybook folder to ${projectDirectory} - using Storybook version ${workspaceStorybookVersion}`
-  );
-  const templatePath = join(
-    __dirname,
-    workspaceStorybookVersion === '6' ? './project-files' : './project-files-5'
-  );
-
-  generateFiles(tree, templatePath, root, {
-    tmpl: '',
-    uiFramework,
-    offsetFromRoot: offsetFromRoot(root),
-    projectType: projectDirectory,
-    useWebpack5:
-      uiFramework === '@storybook/angular' ||
-      uiFramework === '@storybook/react',
-    existsRootWebpackConfig: tree.exists('.storybook/webpack.config.js'),
-  });
-
-  if (js) {
-    toJS(tree);
-  }
-}
-
-function getTsConfigPath(
-  tree: Tree,
-  projectName: string,
-  path?: string
-): string {
-  const { root, projectType } = readProjectConfiguration(tree, projectName);
-  return join(
-    root,
-    path && path.length > 0
-      ? path
-      : projectType === 'application'
-      ? 'tsconfig.app.json'
-      : 'tsconfig.lib.json'
-  );
-}
-
-function configureTsProjectConfig(
-  tree: Tree,
-  schema: StorybookConfigureSchema
-) {
-  const { name: projectName } = schema;
-
-  let tsConfigPath: string;
-  let tsConfigContent: TsConfig;
-
-  try {
-    tsConfigPath = getTsConfigPath(tree, projectName);
-    tsConfigContent = readJson<TsConfig>(tree, tsConfigPath);
-  } catch {
-    /**
-     * Custom app configurations
-     * may contain a tsconfig.json
-     * instead of a tsconfig.app.json.
-     */
-
-    tsConfigPath = getTsConfigPath(tree, projectName, 'tsconfig.json');
-    tsConfigContent = readJson<TsConfig>(tree, tsConfigPath);
-  }
-
-  tsConfigContent.exclude = [
-    ...(tsConfigContent.exclude || []),
-    '**/*.stories.ts',
-    '**/*.stories.js',
-    ...(isFramework('react', schema)
-      ? ['**/*.stories.jsx', '**/*.stories.tsx']
-      : []),
-  ];
-
-  writeJson(tree, tsConfigPath, tsConfigContent);
-}
-
-function configureTsSolutionConfig(
-  tree: Tree,
-  schema: StorybookConfigureSchema
-) {
-  const { name: projectName } = schema;
-
-  const { root } = readProjectConfiguration(tree, projectName);
-  const tsConfigPath = join(root, 'tsconfig.json');
-  const tsConfigContent = readJson<TsConfig>(tree, tsConfigPath);
-
-  tsConfigContent.references = [
-    ...(tsConfigContent.references || []),
-    {
-      path: './.storybook/tsconfig.json',
-    },
-  ];
-
-  writeJson(tree, tsConfigPath, tsConfigContent);
-}
-
-/**
- * When adding storybook we need to inform TSLint or ESLint
- * of the additional tsconfig.json file which will be the only tsconfig
- * which includes *.stories files.
- *
- * For TSLint this is done via the builder config, for ESLint this is
- * done within the .eslintrc.json file.
- */
-function updateLintConfig(tree: Tree, schema: StorybookConfigureSchema) {
-  const { name: projectName } = schema;
-
-  const { targets, root } = readProjectConfiguration(tree, projectName);
-  const tslintTargets = Object.values(targets).filter(
-    (target) => target.executor === '@angular-devkit/build-angular:tslint'
-  );
-
-  tslintTargets.forEach((target) => {
-    target.options.tsConfig = dedupe([
-      ...target.options.tsConfig,
-      joinPathFragments(root, './.storybook/tsconfig.json'),
-    ]);
-  });
-
-  if (tree.exists(join(root, '.eslintrc.json'))) {
-    updateJson(tree, join(root, '.eslintrc.json'), (json) => {
-      if (typeof json.parserOptions?.project === 'string') {
-        json.parserOptions.project = [json.parserOptions.project];
-      }
-
-      if (Array.isArray(json.parserOptions?.project)) {
-        json.parserOptions.project = dedupe([
-          ...json.parserOptions.project,
-          join(root, '.storybook/tsconfig.json'),
-        ]);
-      }
-
-      const overrides = json.overrides || [];
-      for (const o of overrides) {
-        if (typeof o.parserOptions?.project === 'string') {
-          o.parserOptions.project = [o.parserOptions.project];
-        }
-        if (Array.isArray(o.parserOptions?.project)) {
-          o.parserOptions.project = dedupe([
-            ...o.parserOptions.project,
-            join(root, '.storybook/tsconfig.json'),
-          ]);
-        }
-      }
-
-      return json;
-    });
-  }
-}
-
-function dedupe(arr: string[]) {
-  return Array.from(new Set(arr));
-}
-
-function addStorybookTask(
-  tree: Tree,
-  projectName: string,
-  uiFramework: string
-) {
-  const projectConfig = readProjectConfiguration(tree, projectName);
-  projectConfig.targets['storybook'] = {
-    executor: '@nrwl/storybook:storybook',
-    options: {
-      uiFramework,
-      port: 4400,
-      config: {
-        configFolder: `${projectConfig.root}/.storybook`,
-      },
-    },
-    configurations: {
-      ci: {
-        quiet: true,
-      },
-    },
-  };
-  projectConfig.targets['build-storybook'] = {
-    executor: '@nrwl/storybook:build',
-    outputs: ['{options.outputPath}'],
-    options: {
-      uiFramework,
-      outputPath: joinPathFragments('dist/storybook', projectName),
-      config: {
-        configFolder: `${projectConfig.root}/.storybook`,
-      },
-    },
-    configurations: {
-      ci: {
-        quiet: true,
-      },
-    },
-  };
-
-  updateProjectConfiguration(tree, projectName, projectConfig);
-}
-
-function getCurrentWorkspaceStorybookVersion(tree: Tree): string {
-  let workspaceStorybookVersion =
-    readCurrentWorkspaceStorybookVersionFromGenerator(tree);
-
-  if (
-    gte(
-      checkAndCleanWithSemver('@storybook/core', workspaceStorybookVersion),
-      '6.0.0'
-    )
-  ) {
-    workspaceStorybookVersion = '6';
-  }
-  return workspaceStorybookVersion;
-}
-
 export default configurationGenerator;
-export const configurationSchematic = convertNxGenerator(
-  configurationGenerator
-);

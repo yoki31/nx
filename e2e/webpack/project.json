@@ -1,0 +1,23 @@
+{
+  "name": "e2e-webpack",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "e2e/webpack",
+  "projectType": "application",
+  "implicitDependencies": ["webpack"],
+  "targets": {
+    "e2e-ci--src/webpack.legacy.test.ts": {
+      "dependsOn": [
+        "nx:build-native",
+        "@nx/nx-source:populate-local-registry-storage"
+      ],
+      "inputs": ["e2eInputs", "^production"]
+    },
+    "e2e-ci--src/webpack.test.ts": {
+      "dependsOn": [
+        "nx:build-native",
+        "@nx/nx-source:populate-local-registry-storage"
+      ],
+      "inputs": ["e2eInputs", "^production"]
+    }
+  }
+}

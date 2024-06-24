@@ -1,31 +1,18 @@
-<p style="text-align: center;"><img src="https://raw.githubusercontent.com/nrwl/nx/master/images/nx.png" width="600" alt="Nx - Smart, Fast and Extensible Build System"></p>
+<p style="text-align: center;">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/nrwl/nx/master/images/nx-dark.svg">
+    <img alt="Nx - Smart Monorepos · Fast CI" src="https://raw.githubusercontent.com/nrwl/nx/master/images/nx-light.svg" width="100%">
+  </picture>
+</p>
 
 {{links}}
 
 <hr>
 
-# Nest.js Plugin for Nx
+# Nx: Smart Monorepos · Fast CI
 
-{{what-is-nx}}
+Nx is a build system with built-in tooling and advanced CI capabilities. It helps you maintain and scale monorepos, both locally and on CI.
 
-{{getting-started}}
+This package is a [NestJS plugin for Nx](https://nx.dev/nest/overview).
 
-```
-? Workspace name (e.g., org name)     happyorg
-? What to create in the new workspace nest
-? Application name                    myapp
-? Default stylesheet format           CSS
-```
-
-You can also select `empty` and add `@nrwl/nest` plugin using yarn or npm, and then generate a new express app using `nx g @nrwl/nest:app myapp`.
-
-If it's your first Nx project, the command will recommend you to install the `nx` package globally, so you can invoke `nx` directly without going through yarn or npm.
-
-### Serving Application
-
-- Run `nx serve myapp` to serve the newly generated application!
-- Run `nx test myapp` to test it.
-
-You are good to go!
-
-{{resources}}
+{{content}}

@@ -1,34 +1,30 @@
 {
-  "root": "e2e/jest",
+  "name": "e2e-jest",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
   "sourceRoot": "e2e/jest",
   "projectType": "application",
+  "implicitDependencies": ["jest"],
   "targets": {
-    "e2e": {
-      "executor": "@nrwl/workspace:run-commands",
-      "options": {
-        "commands": [
-          {
-            "command": "yarn e2e-start-local-registry"
-          },
-          {
-            "command": "yarn e2e-build-package-publish"
-          },
-          {
-            "command": "nx run-e2e-tests e2e-jest"
-          }
-        ],
-        "parallel": false
-      }
+    "e2e-ci--src/jest.test.ts": {
+      "dependsOn": [
+        "nx:build-native",
+        "@nx/nx-source:populate-local-registry-storage"
+      ],
+      "inputs": ["e2eInputs", "^production"]
     },
-    "run-e2e-tests": {
-      "executor": "@nrwl/jest:jest",
-      "options": {
-        "jestConfig": "e2e/jest/jest.config.js",
-        "passWithNoTests": true,
-        "runInBand": true
-      },
-      "outputs": ["coverage/e2e/jest"]
+    "e2e-ci--src/jest-legacy.test.ts": {
+      "dependsOn": [
+        "nx:build-native",
+        "@nx/nx-source:populate-local-registry-storage"
+      ],
+      "inputs": ["e2eInputs", "^production"]
+    },
+    "e2e-ci--src/jest-root.test.ts": {
+      "dependsOn": [
+        "nx:build-native",
+        "@nx/nx-source:populate-local-registry-storage"
+      ],
+      "inputs": ["e2eInputs", "^production"]
     }
-  },
-  "implicitDependencies": ["jest"]
+  }
 }

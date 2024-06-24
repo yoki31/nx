@@ -1,40 +1,89 @@
-import { assertValidStyle } from '@nrwl/react';
-import {
-  getWorkspaceLayout,
-  joinPathFragments,
-  names,
-  Tree,
-} from '@nrwl/devkit';
-import { Linter } from '@nrwl/linter';
-
+import { joinPathFragments, names, readNxJson, Tree } from '@nx/devkit';
+import { determineProjectNameAndRootOptions } from '@nx/devkit/src/generators/project-name-and-root-utils';
+import { Linter } from '@nx/eslint';
+import { assertValidStyle } from '@nx/react/src/utils/assertion';
 import { Schema } from '../schema';
+import { NextPluginOptions } from '../../../plugins/plugin';
 
 export interface NormalizedSchema extends Schema {
   projectName: string;
   appProjectRoot: string;
+  outputPath: string;
   e2eProjectName: string;
   e2eProjectRoot: string;
+  e2eWebServerAddress: string;
+  e2eWebServerTarget: string;
+  e2ePort: number;
   parsedTags: string[];
   fileName: string;
   styledModule: null | string;
   js?: boolean;
 }
 
-export function normalizeOptions(
+export async function normalizeOptions(
   host: Tree,
   options: Schema
-): NormalizedSchema {
-  const appDirectory = options.directory
-    ? `${names(options.directory).fileName}/${names(options.name).fileName}`
-    : names(options.name).fileName;
+): Promise<NormalizedSchema> {
+  const {
+    projectName: appProjectName,
+    projectRoot: appProjectRoot,
+    projectNameAndRootFormat,
+  } = await determineProjectNameAndRootOptions(host, {
+    name: options.name,
+    projectType: 'application',
+    directory: options.directory,
+    projectNameAndRootFormat: options.projectNameAndRootFormat,
+    rootProject: options.rootProject,
+    callingGenerator: '@nx/next:application',
+  });
+  options.rootProject = appProjectRoot === '.';
+  options.projectNameAndRootFormat = projectNameAndRootFormat;
 
-  const { appsDir } = getWorkspaceLayout(host);
+  const nxJson = readNxJson(host);
+  const addPlugin =
+    process.env.NX_ADD_PLUGINS !== 'false' &&
+    nxJson.useInferencePlugins !== false;
 
-  const appProjectName = appDirectory.replace(new RegExp('/', 'g'), '-');
-  const e2eProjectName = `${appProjectName}-e2e`;
+  options.addPlugin ??= addPlugin;
 
-  const appProjectRoot = joinPathFragments(appsDir, appDirectory);
-  const e2eProjectRoot = joinPathFragments(appsDir, `${appDirectory}-e2e`);
+  let e2eWebServerTarget = options.addPlugin ? 'start' : 'serve';
+  if (options.addPlugin) {
+    if (nxJson.plugins) {
+      for (const plugin of nxJson.plugins) {
+        if (
+          typeof plugin === 'object' &&
+          plugin.plugin === '@nx/next/plugin' &&
+          (plugin.options as NextPluginOptions).startTargetName
+        ) {
+          e2eWebServerTarget = (plugin.options as NextPluginOptions)
+            .startTargetName;
+        }
+      }
+    }
+  }
+
+  let e2ePort = options.addPlugin ? 3000 : 4200;
+  if (
+    nxJson.targetDefaults?.[e2eWebServerTarget] &&
+    (nxJson.targetDefaults?.[e2eWebServerTarget].options?.port ||
+      nxJson.targetDefaults?.[e2eWebServerTarget].options?.env?.PORT)
+  ) {
+    e2ePort =
+      nxJson.targetDefaults?.[e2eWebServerTarget].options?.port ||
+      nxJson.targetDefaults?.[e2eWebServerTarget].options?.env?.PORT;
+  }
+
+  const e2eProjectName = options.rootProject ? 'e2e' : `${appProjectName}-e2e`;
+  const e2eProjectRoot = options.rootProject ? 'e2e' : `${appProjectRoot}-e2e`;
+  const e2eWebServerAddress = `http://localhost:${e2ePort}`;
+
+  const name = names(options.name).fileName;
+
+  const outputPath = joinPathFragments(
+    'dist',
+    appProjectRoot,
+    ...(options.rootProject ? [name] : [])
+  );
 
   const parsedTags = options.tags
     ? options.tags.split(',').map((s) => s.trim())
@@ -42,7 +91,10 @@ export function normalizeOptions(
 
   const fileName = 'index';
 
-  const styledModule = /^(css|scss|less|styl)$/.test(options.style)
+  const appDir = options.appDir ?? true;
+  const src = options.src ?? true;
+
+  const styledModule = /^(css|scss|less|tailwind)$/.test(options.style)
     ? null
     : options.style;
 
@@ -50,17 +102,23 @@ export function normalizeOptions(
 
   return {
     ...options,
-    name: names(options.name).fileName,
-    projectName: appProjectName,
-    linter: options.linter || Linter.EsLint,
-    unitTestRunner: options.unitTestRunner || 'jest',
-    e2eTestRunner: options.e2eTestRunner || 'cypress',
-    style: options.style || 'css',
+    appDir,
+    src,
     appProjectRoot,
-    e2eProjectRoot,
     e2eProjectName,
-    parsedTags,
+    e2eProjectRoot,
+    e2eWebServerAddress,
+    e2eWebServerTarget,
+    e2ePort,
+    e2eTestRunner: options.e2eTestRunner || 'playwright',
     fileName,
+    linter: options.linter || Linter.EsLint,
+    name,
+    outputPath,
+    parsedTags,
+    projectName: appProjectName,
+    style: options.style || 'css',
     styledModule,
+    unitTestRunner: options.unitTestRunner || 'jest',
   };
 }

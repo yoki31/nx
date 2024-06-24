@@ -1,118 +1,135 @@
 import {
-  babelJestVersion,
-  jestTypesVersion,
-  jestVersion,
-  nxVersion,
-  swcJestVersion,
-  tsJestVersion,
-  tslibVersion,
-} from '../../utils/versions';
-import { JestInitSchema } from './schema';
-import {
   addDependenciesToPackageJson,
-  convertNxGenerator,
-  stripIndents,
-  Tree,
-  updateJson,
-} from '@nrwl/devkit';
+  createProjectGraphAsync,
+  formatFiles,
+  readNxJson,
+  removeDependenciesFromPackageJson,
+  runTasksInSerial,
+  updateNxJson,
+  type GeneratorCallback,
+  type Tree,
+} from '@nx/devkit';
+import { addPlugin } from '@nx/devkit/src/utils/add-plugin';
+import { createNodesV2 } from '../../plugins/plugin';
+import {
+  getPresetExt,
+  type JestPresetExtension,
+} from '../../utils/config/config-file';
+import { jestVersion, nxVersion } from '../../utils/versions';
+import type { JestInitSchema } from './schema';
 
-interface NormalizedSchema extends ReturnType<typeof normalizeOptions> {}
+function updateProductionFileSet(tree: Tree) {
+  const nxJson = readNxJson(tree);
 
-const schemaDefaults = {
-  compiler: 'tsc',
-} as const;
-
-function removeNrwlJestFromDeps(host: Tree) {
-  updateJson(host, 'package.json', (json) => {
-    // check whether updating the package.json is necessary
-    if (json.dependencies && json.dependencies['@nrwl/jest']) {
-      delete json.dependencies['@nrwl/jest'];
-    }
-    return json;
-  });
-}
-
-function createJestConfig(host: Tree) {
-  if (!host.exists('jest.config.js')) {
-    host.write(
-      'jest.config.js',
-      stripIndents`
-  const { getJestProjects } = require('@nrwl/jest');
-
-  module.exports = {
-    projects: getJestProjects()
-  };`
+  const productionFileSet = nxJson.namedInputs?.production;
+  if (productionFileSet) {
+    // This is one of the patterns in the default jest patterns
+    productionFileSet.push(
+      // Remove spec, test, and snapshots from the production fileset
+      '!{projectRoot}/**/?(*.)+(spec|test).[jt]s?(x)?(.snap)',
+      // Remove tsconfig.spec.json
+      '!{projectRoot}/tsconfig.spec.json',
+      // Remove jest.config.js/ts
+      '!{projectRoot}/jest.config.[jt]s',
+      // Remove test-setup.js/ts
+      // TODO(meeroslav) this should be standardized
+      '!{projectRoot}/src/test-setup.[jt]s',
+      '!{projectRoot}/test-setup.[jt]s'
     );
+    // Dedupe and set
+    nxJson.namedInputs.production = Array.from(new Set(productionFileSet));
   }
 
-  if (!host.exists('jest.preset.js')) {
-    host.write(
-      'jest.preset.js',
-      `
-      const nxPreset = require('@nrwl/jest/preset');
-     
-      module.exports = { ...nxPreset }`
-    );
-  }
+  updateNxJson(tree, nxJson);
 }
 
-function updateDependencies(tree: Tree, options: NormalizedSchema) {
-  const dependencies = {
-    tslib: tslibVersion,
+function addJestTargetDefaults(tree: Tree, presetExt: JestPresetExtension) {
+  const nxJson = readNxJson(tree);
+
+  nxJson.targetDefaults ??= {};
+  nxJson.targetDefaults['@nx/jest:jest'] ??= {};
+
+  const productionFileSet = nxJson.namedInputs?.production;
+
+  nxJson.targetDefaults['@nx/jest:jest'].cache ??= true;
+  // Test targets depend on all their project's sources + production sources of dependencies
+  nxJson.targetDefaults['@nx/jest:jest'].inputs ??= [
+    'default',
+    productionFileSet ? '^production' : '^default',
+    `{workspaceRoot}/jest.preset.${presetExt}`,
+  ];
+
+  nxJson.targetDefaults['@nx/jest:jest'].options ??= {
+    passWithNoTests: true,
   };
-  const devDeps = {
-    '@nrwl/jest': nxVersion,
-    jest: jestVersion,
-    '@types/jest': jestTypesVersion,
-    // because the default jest-preset uses ts-jest,
-    // jest will throw an error if it's not installed
-    // even if not using it in overriding transformers
-    'ts-jest': tsJestVersion,
+  nxJson.targetDefaults['@nx/jest:jest'].configurations ??= {
+    ci: {
+      ci: true,
+      codeCoverage: true,
+    },
   };
 
-  if (options.compiler === 'babel' || options.babelJest) {
-    devDeps['babel-jest'] = babelJestVersion;
-    // in some cases @nrwl/web will not already be present i.e. node only projects
-    devDeps['@nrwl/web'] = nxVersion;
-    // TODO: revert to @swc/jest when https://github.com/swc-project/cli/issues/20 is addressed
-    // } else if (options.compiler === 'swc') {
-    //   devDeps['@swc/jest'] = swcJestVersion;
-  }
-
-  return addDependenciesToPackageJson(tree, dependencies, devDeps);
+  updateNxJson(tree, nxJson);
 }
 
-function updateExtensions(host: Tree) {
-  if (!host.exists('.vscode/extensions.json')) {
-    return;
-  }
+function updateDependencies(tree: Tree, options: JestInitSchema) {
+  return addDependenciesToPackageJson(
+    tree,
+    {},
+    {
+      '@nx/jest': nxVersion,
+      jest: jestVersion,
+    },
+    undefined,
+    options.keepExistingVersions
+  );
+}
 
-  updateJson(host, '.vscode/extensions.json', (json) => {
-    json.recommendations = json.recommendations || [];
-    const extension = 'firsttris.vscode-jest-runner';
-    if (!json.recommendations.includes(extension)) {
-      json.recommendations.push(extension);
+export function jestInitGenerator(tree: Tree, options: JestInitSchema) {
+  return jestInitGeneratorInternal(tree, { addPlugin: false, ...options });
+}
+
+export async function jestInitGeneratorInternal(
+  tree: Tree,
+  options: JestInitSchema
+): Promise<GeneratorCallback> {
+  const nxJson = readNxJson(tree);
+  const addPluginDefault =
+    process.env.NX_ADD_PLUGINS !== 'false' &&
+    nxJson.useInferencePlugins !== false;
+  options.addPlugin ??= addPluginDefault;
+
+  const presetExt = getPresetExt(tree);
+
+  if (!tree.exists(`jest.preset.${presetExt}`)) {
+    updateProductionFileSet(tree);
+    if (options.addPlugin) {
+      await addPlugin(
+        tree,
+        await createProjectGraphAsync(),
+        '@nx/jest/plugin',
+        createNodesV2,
+        {
+          targetName: ['test', 'jest:test', 'jest-test'],
+        },
+        options.updatePackageScripts
+      );
+    } else {
+      addJestTargetDefaults(tree, presetExt);
     }
-    return json;
-  });
-}
+  }
 
-export function jestInitGenerator(tree: Tree, schema: JestInitSchema) {
-  const options = normalizeOptions(schema);
-  createJestConfig(tree);
-  const installTask = updateDependencies(tree, options);
-  removeNrwlJestFromDeps(tree);
-  updateExtensions(tree);
-  return installTask;
-}
+  const tasks: GeneratorCallback[] = [];
+  if (!options.skipPackageJson) {
+    tasks.push(removeDependenciesFromPackageJson(tree, ['@nx/jest'], []));
+    tasks.push(updateDependencies(tree, options));
+  }
 
-function normalizeOptions(options: JestInitSchema) {
-  return {
-    ...schemaDefaults,
-    ...options,
-  };
+  if (!options.skipFormat) {
+    await formatFiles(tree);
+  }
+
+  return runTasksInSerial(...tasks);
 }
 
 export default jestInitGenerator;
-
-export const jestInitSchematic = convertNxGenerator(jestInitGenerator);

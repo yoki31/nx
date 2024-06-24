@@ -1,9 +1,7 @@
-export const nxVersion = '*';
+export const nxVersion = require('../../package.json').version;
 
-export const angularCliVersion = '~13.1.0';
-export const typescriptVersion = '~4.4.3';
-export const prettierVersion = '^2.3.1';
-export const tslintVersion = '~6.1.0';
-export const typescriptESLintVersion = '~5.3.0';
-export const eslintVersion = '8.2.0';
-export const eslintConfigPrettierVersion = '8.1.0';
+export const typescriptVersion = '~5.4.2';
+
+// TODO: remove when preset generation is reworked and
+// deps are not installed from workspace
+export const angularCliVersion = '~18.0.0';

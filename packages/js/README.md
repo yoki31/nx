@@ -1,7 +1,18 @@
-# js
+<p style="text-align: center;">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/nrwl/nx/master/images/nx-dark.svg">
+    <img alt="Nx - Smart Monorepos · Fast CI" src="https://raw.githubusercontent.com/nrwl/nx/master/images/nx-light.svg" width="100%">
+  </picture>
+</p>
 
-This library was generated with [Nx](https://nx.dev).
+{{links}}
 
-## Running unit tests
+<hr>
 
-Run `nx test js` to execute the unit tests via [Jest](https://jestjs.io).
+# Nx: Smart Monorepos · Fast CI
+
+Nx is a build system with built-in tooling and advanced CI capabilities. It helps you maintain and scale monorepos, both locally and on CI.
+
+This package is a [JavaScript/TypeScript plugin for Nx](https://nx.dev/js/overview).
+
+{{content}}

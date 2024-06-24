@@ -1,69 +1,104 @@
-import { getWorkspaceLayout, joinPathFragments, Tree } from '@nrwl/devkit';
+import { names, Tree } from '@nx/devkit';
+import { determineProjectNameAndRootOptions } from '@nx/devkit/src/generators/project-name-and-root-utils';
+import { Linter } from '@nx/eslint';
+import { UnitTestRunner } from '../../../utils/test-runners';
 import { Schema } from '../schema';
 import { NormalizedSchema } from './normalized-schema';
-import { names } from '@nrwl/devkit';
-import { Linter } from '@nrwl/linter';
-import { UnitTestRunner } from '../../../utils/test-runners';
 
-export function normalizeOptions(
+export async function normalizeOptions(
   host: Tree,
-  schema: Partial<Schema>
-): NormalizedSchema {
+  schema: Schema
+): Promise<NormalizedSchema> {
+  schema.standalone = schema.standalone ?? true;
   // Create a schema with populated default values
   const options: Schema = {
     buildable: false,
     linter: Linter.EsLint,
-    name: '', // JSON validation will ensure this is set
     publishable: false,
-    simpleModuleName: false,
+    simpleName: false,
     skipFormat: false,
     unitTestRunner: UnitTestRunner.Jest,
     // Publishable libs cannot use `full` yet, so if its false then use the passed value or default to `full`
     compilationMode: schema.publishable
       ? 'partial'
       : schema.compilationMode ?? 'full',
-    skipModule: schema.skipModule ?? false,
+    skipModule: schema.skipModule || schema.standalone,
     ...schema,
   };
 
-  const name = names(options.name).fileName;
-  const projectDirectory = options.directory
-    ? `${names(options.directory).fileName}/${name}`
-    : name;
+  const {
+    projectName,
+    names: projectNames,
+    projectRoot,
+    importPath,
+  } = await determineProjectNameAndRootOptions(host, {
+    name: options.name,
+    projectType: 'library',
+    directory: options.directory,
+    importPath: options.importPath,
+    projectNameAndRootFormat: options.projectNameAndRootFormat,
+    callingGenerator: '@nx/angular:library',
+  });
 
-  const { libsDir, npmScope, standaloneAsDefault } = getWorkspaceLayout(host);
-
-  const projectName = projectDirectory
-    .replace(new RegExp('/', 'g'), '-')
-    .replace(/-\d+/g, '');
-  const fileName = options.simpleModuleName ? name : projectName;
-  const projectRoot = joinPathFragments(libsDir, projectDirectory);
+  const fileName = options.simpleName
+    ? projectNames.projectSimpleName
+    : projectNames.projectFileName;
 
   const moduleName = `${names(fileName).className}Module`;
   const parsedTags = options.tags
     ? options.tags.split(',').map((s) => s.trim())
     : [];
   const modulePath = `${projectRoot}/src/lib/${fileName}.module.ts`;
-  const defaultPrefix = npmScope;
 
-  options.standaloneConfig = options.standaloneConfig ?? standaloneAsDefault;
-
-  const importPath =
-    options.importPath || `@${defaultPrefix}/${projectDirectory}`;
-
-  return {
+  const ngCliSchematicLibRoot = projectName;
+  const allNormalizedOptions = {
     ...options,
     linter: options.linter ?? Linter.EsLint,
     unitTestRunner: options.unitTestRunner ?? UnitTestRunner.Jest,
-    prefix: options.prefix ?? defaultPrefix,
+    prefix: options.prefix ?? 'lib',
     name: projectName,
     projectRoot,
     entryFile: 'index',
     moduleName,
-    projectDirectory,
     modulePath,
     parsedTags,
     fileName,
     importPath,
+    ngCliSchematicLibRoot,
+    standaloneComponentName: `${
+      names(projectNames.projectSimpleName).className
+    }Component`,
+  };
+
+  const {
+    displayBlock,
+    inlineStyle,
+    inlineTemplate,
+    viewEncapsulation,
+    changeDetection,
+    style,
+    skipTests,
+    selector,
+    skipSelector,
+    flat,
+    ...libraryOptions
+  } = allNormalizedOptions;
+
+  return {
+    libraryOptions,
+    componentOptions: {
+      name: fileName,
+      standalone: libraryOptions.standalone,
+      displayBlock,
+      inlineStyle,
+      inlineTemplate,
+      viewEncapsulation,
+      changeDetection,
+      style,
+      skipTests,
+      selector,
+      skipSelector,
+      flat,
+    },
   };
 }

@@ -1,20 +1,20 @@
 import {
+  createReadStream,
   createWriteStream,
   existsSync,
-  mkdirSync,
-  statSync,
-  createReadStream,
-  writeFileSync,
   renameSync as fsRenameSync,
 } from 'fs';
-import { ensureDirSync } from 'fs-extra';
-import { basename, dirname, resolve as pathResolve } from 'path';
-import { readJsonFile, writeJsonFile } from '@nrwl/devkit';
+import { basename, resolve as pathResolve } from 'path';
+import {
+  readJsonFile,
+  writeJsonFile,
+  fileExists,
+  directoryExists,
+  isRelativePath,
+  createDirectory,
+} from 'nx/src/utils/fileutils';
 
-export function writeToFile(filePath: string, str: string) {
-  ensureDirSync(dirname(filePath));
-  writeFileSync(filePath, str);
-}
+export { fileExists, directoryExists, isRelativePath, createDirectory };
 
 /**
  * This method is specifically for updating a JSON file using the filesystem
@@ -36,32 +36,6 @@ export function copyFile(file: string, target: string) {
   const dest = createWriteStream(pathResolve(target, f));
   source.pipe(dest);
   source.on('error', (e) => console.error(e));
-}
-
-export function directoryExists(name) {
-  try {
-    return statSync(name).isDirectory();
-  } catch (e) {
-    return false;
-  }
-}
-
-export function fileExists(filePath: string): boolean {
-  try {
-    return statSync(filePath).isFile();
-  } catch (err) {
-    return false;
-  }
-}
-
-export function createDirectory(directoryPath: string) {
-  const parentPath = pathResolve(directoryPath, '..');
-  if (!directoryExists(parentPath)) {
-    createDirectory(parentPath);
-  }
-  if (!directoryExists(directoryPath)) {
-    mkdirSync(directoryPath);
-  }
 }
 
 export function renameSync(
@@ -86,14 +60,3 @@ export function renameSync(
     cb(e);
   }
 }
-
-export function isRelativePath(path: string): boolean {
-  return (
-    path === '.' ||
-    path === '..' ||
-    path.startsWith('./') ||
-    path.startsWith('../')
-  );
-}
-
-export const resolve = require.resolve;

@@ -1,12 +1,8 @@
-const nxPreset = require('@nrwl/jest/preset');
-
-process.env.npm_config_registry = `http://localhost:4872`;
-process.env.YARN_REGISTRY = `http://localhost:4872`;
+const nxPreset = require('@nx/jest/preset').default;
 
 module.exports = {
   ...nxPreset,
-  testRunner: 'jest-circus/runner',
-  testTimeout: 30000,
+  testTimeout: 35000,
   testMatch: ['**/+(*.)+(spec|test).+(ts|js)?(x)'],
   transform: {
     '^.+\\.(ts|js|html)$': 'ts-jest',
@@ -15,4 +11,6 @@ module.exports = {
   moduleFileExtensions: ['ts', 'js', 'html'],
   coverageReporters: ['html'],
   maxWorkers: 1,
+  testEnvironment: 'node',
+  setupFiles: ['../../scripts/unit-test-setup.js'],
 };

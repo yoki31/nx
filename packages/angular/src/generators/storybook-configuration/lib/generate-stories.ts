@@ -1,24 +1,31 @@
-import { getE2eProjectName } from '@nrwl/cypress/src/utils/project-name';
-import type { Tree } from '@nrwl/devkit';
-import { readProjectConfiguration } from '@nrwl/devkit';
+import type { Tree } from '@nx/devkit';
+import { ensurePackage, readProjectConfiguration } from '@nx/devkit';
+import { nxVersion } from '../../../utils/versions';
 import { angularStoriesGenerator } from '../../stories/stories';
 import type { StorybookConfigurationOptions } from '../schema';
 
-export function generateStories(
+export async function generateStories(
   tree: Tree,
   options: StorybookConfigurationOptions
 ) {
-  const project = readProjectConfiguration(tree, options.name);
+  const project = readProjectConfiguration(tree, options.project);
+  ensurePackage('@nx/cypress', nxVersion);
+  const { getE2eProjectName } = <
+    typeof import('@nx/cypress/src/utils/project-name')
+  >require('@nx/cypress/src/utils/project-name');
   const e2eProjectName = getE2eProjectName(
-    options.name,
+    options.project,
     project.root,
     options.cypressDirectory
   );
 
-  angularStoriesGenerator(tree, {
-    name: options.name,
+  await angularStoriesGenerator(tree, {
+    name: options.project,
     generateCypressSpecs:
       options.configureCypress && options.generateCypressSpecs,
     cypressProject: e2eProjectName,
+    ignorePaths: options.ignorePaths,
+    interactionTests: options.interactionTests,
+    skipFormat: true,
   });
 }

@@ -1,78 +1,140 @@
-import { runTasksInSerial } from '@nrwl/workspace/src/utilities/run-tasks-in-serial';
-import { Schema } from './schema';
-import { runPodInstall } from '../../utils/pod-install-task';
-import { runChmod } from '../../utils/chmod-task';
-import { runSymlink } from '../../utils/symlink-task';
+import {
+  formatFiles,
+  GeneratorCallback,
+  joinPathFragments,
+  output,
+  readCachedProjectGraph,
+  readJson,
+  runTasksInSerial,
+  Tree,
+} from '@nx/devkit';
+import { initGenerator as jsInitGenerator } from '@nx/js';
+import { logShowProjectCommand } from '@nx/devkit/src/utils/log-show-project-command';
+
 import { addLinting } from '../../utils/add-linting';
 import { addJest } from '../../utils/add-jest';
-import {
-  convertNxGenerator,
-  Tree,
-  formatFiles,
-  joinPathFragments,
-  GeneratorCallback,
-} from '@nrwl/devkit';
+import { chmodAndroidGradlewFilesTask } from '../../utils/chmod-android-gradle-files';
+import { runPodInstall } from '../../utils/pod-install-task';
+import { webConfigurationGenerator } from '../web-configuration/web-configuration';
+
 import { normalizeOptions } from './lib/normalize-options';
 import initGenerator from '../init/init';
-import { join } from 'path';
 import { addProject } from './lib/add-project';
 import { createApplicationFiles } from './lib/create-application-files';
-import { addDetox } from './lib/add-detox';
+import { addE2e } from './lib/add-e2e';
+import { Schema } from './schema';
+import { ensureDependencies } from '../../utils/ensure-dependencies';
+import { syncDeps } from '../../executors/sync-deps/sync-deps.impl';
+import { PackageJson } from 'nx/src/utils/package-json';
 
 export async function reactNativeApplicationGenerator(
   host: Tree,
   schema: Schema
 ): Promise<GeneratorCallback> {
-  const options = normalizeOptions(host, schema);
+  return await reactNativeApplicationGeneratorInternal(host, {
+    addPlugin: false,
+    projectNameAndRootFormat: 'derived',
+    ...schema,
+  });
+}
+
+export async function reactNativeApplicationGeneratorInternal(
+  host: Tree,
+  schema: Schema
+): Promise<GeneratorCallback> {
+  const options = await normalizeOptions(host, schema);
+
+  const tasks: GeneratorCallback[] = [];
+  const jsInitTask = await jsInitGenerator(host, {
+    ...schema,
+    skipFormat: true,
+  });
+  tasks.push(jsInitTask);
+  const initTask = await initGenerator(host, { ...options, skipFormat: true });
+  tasks.push(initTask);
+
+  if (!options.skipPackageJson) {
+    tasks.push(ensureDependencies(host));
+  }
 
   createApplicationFiles(host, options);
   addProject(host, options);
 
-  const initTask = await initGenerator(host, { ...options, skipFormat: true });
-  const lintTask = await addLinting(
-    host,
-    options.projectName,
-    options.appProjectRoot,
-    [joinPathFragments(options.appProjectRoot, 'tsconfig.app.json')],
-    options.linter,
-    options.setParserOptionsProject
-  );
+  const lintTask = await addLinting(host, {
+    ...options,
+    projectRoot: options.appProjectRoot,
+    tsConfigPaths: [
+      joinPathFragments(options.appProjectRoot, 'tsconfig.app.json'),
+    ],
+  });
+  tasks.push(lintTask);
+
   const jestTask = await addJest(
     host,
     options.unitTestRunner,
     options.projectName,
     options.appProjectRoot,
-    options.js
+    options.js,
+    options.skipPackageJson,
+    options.addPlugin
   );
-  const detoxTask = await addDetox(host, options);
-  const symlinkTask = runSymlink(host.root, options.appProjectRoot);
-  const podInstallTask = runPodInstall(join(host.root, options.iosProjectRoot));
-  const chmodTaskGradlew = runChmod(
-    join(host.root, options.androidProjectRoot, 'gradlew'),
-    0o775
+  tasks.push(jestTask);
+
+  const webTask = await webConfigurationGenerator(host, {
+    ...options,
+    project: options.name,
+    skipFormat: true,
+  });
+  tasks.push(webTask);
+
+  const e2eTask = await addE2e(host, options);
+  tasks.push(e2eTask);
+
+  const chmodTaskGradlewTask = chmodAndroidGradlewFilesTask(
+    joinPathFragments(host.root, options.androidProjectRoot)
   );
-  const chmodTaskGradlewBat = runChmod(
-    join(host.root, options.androidProjectRoot, 'gradlew.bat'),
-    0o775
+  tasks.push(chmodTaskGradlewTask);
+
+  const podInstallTask = runPodInstall(
+    joinPathFragments(host.root, options.iosProjectRoot)
   );
+  if (options.install) {
+    const projectPackageJsonPath = joinPathFragments(
+      options.appProjectRoot,
+      'package.json'
+    );
+
+    const workspacePackageJson = readJson<PackageJson>(host, 'package.json');
+    const projectPackageJson = readJson<PackageJson>(
+      host,
+      projectPackageJsonPath
+    );
+
+    await syncDeps(
+      options.name,
+      projectPackageJson,
+      projectPackageJsonPath,
+      workspacePackageJson
+    );
+    tasks.push(podInstallTask);
+  } else {
+    output.log({
+      title: 'Skip `pod install`',
+      bodyLines: [
+        `run 'nx run ${options.name}:pod-install' to install native modules before running iOS app`,
+      ],
+    });
+  }
 
   if (!options.skipFormat) {
     await formatFiles(host);
   }
 
-  return runTasksInSerial(
-    initTask,
-    lintTask,
-    jestTask,
-    detoxTask,
-    symlinkTask,
-    podInstallTask,
-    chmodTaskGradlew,
-    chmodTaskGradlewBat
-  );
+  tasks.push(() => {
+    logShowProjectCommand(options.projectName);
+  });
+
+  return runTasksInSerial(...tasks);
 }
 
 export default reactNativeApplicationGenerator;
-export const reactNativeApplicationSchematic = convertNxGenerator(
-  reactNativeApplicationGenerator
-);

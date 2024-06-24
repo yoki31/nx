@@ -11,6 +11,8 @@
     "**/*.spec.tsx",
     "**/*.spec.js",
     "**/*.spec.jsx",
-    "**/*.d.ts"
+    "**/*.d.ts",
+    "./src/internal-testing-utils/**/*.ts",
+    "jest.config.ts"
   ]
 }

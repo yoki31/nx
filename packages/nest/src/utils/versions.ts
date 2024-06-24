@@ -1,11 +1,7 @@
-export const nxVersion = '*';
+export const nxVersion = require('../../package.json').version;
 
-export const nestJsVersion7 = '^7.0.0';
-export const nestJsVersion8 = '^8.0.0';
-
-export const nestJsSchematicsVersion = '^8.0.0';
-
-export const rxjsVersion6 = '~6.6.3';
-export const rxjsVersion7 = '^7.0.0';
-
+export const nestJsVersion = '^10.0.2';
+export const nestJsSchematicsVersion = '^10.0.1';
+export const rxjsVersion = '^7.8.0';
 export const reflectMetadataVersion = '^0.1.13';
+export const tsLibVersion = '^2.3.0';

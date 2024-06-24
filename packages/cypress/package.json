@@ -1,7 +1,8 @@
 {
-  "name": "@nrwl/cypress",
+  "name": "@nx/cypress",
   "version": "0.0.1",
-  "description": "Cypress plugin for Nx",
+  "private": false,
+  "description": "The Nx Plugin for Cypress contains executors and generators allowing your workspace to use the powerful Cypress integration testing capabilities.",
   "repository": {
     "type": "git",
     "url": "https://github.com/nrwl/nx.git",
@@ -16,9 +17,11 @@
     "Nest",
     "Jest",
     "Cypress",
-    "CLI"
+    "CLI",
+    "Front-end",
+    "Testing"
   ],
-  "main": "./index.js",
+  "main": "./index",
   "typings": "./index.d.ts",
   "author": "Victor Savkin",
   "license": "MIT",
@@ -26,34 +29,29 @@
     "url": "https://github.com/nrwl/nx/issues"
   },
   "homepage": "https://nx.dev",
-  "schematics": "./generators.json",
-  "builders": "./executors.json",
+  "generators": "./generators.json",
+  "executors": "./executors.json",
   "ng-update": {
     "requirements": {},
     "migrations": "./migrations.json"
   },
   "dependencies": {
-    "@nrwl/devkit": "*",
-    "@nrwl/linter": "*",
-    "@nrwl/workspace": "*",
-    "@cypress/webpack-preprocessor": "^5.9.1",
-    "chalk": "4.1.0",
-    "enhanced-resolve": "^5.8.3",
-    "ts-loader": "^9.2.6",
-    "tsconfig-paths": "^3.9.0",
-    "tsconfig-paths-webpack-plugin": "3.4.1",
-    "webpack-node-externals": "^3.0.0",
-    "fork-ts-checker-webpack-plugin": "6.2.10",
-    "rxjs": "^6.5.4",
-    "tslib": "^2.3.0",
-    "yargs-parser": "20.0.0"
+    "@nx/devkit": "file:../devkit",
+    "@nx/eslint": "file:../eslint",
+    "@nx/js": "file:../js",
+    "@phenomnomnominal/tsquery": "~5.0.1",
+    "detect-port": "^1.5.1",
+    "tslib": "^2.3.0"
   },
   "peerDependencies": {
-    "cypress": ">= 3 < 10"
+    "cypress": ">= 3 < 14"
   },
   "peerDependenciesMeta": {
     "cypress": {
       "optional": true
     }
+  },
+  "publishConfig": {
+    "access": "public"
   }
 }

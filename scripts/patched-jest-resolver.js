@@ -3,6 +3,7 @@ Object.defineProperty(exports, '__esModule', { value: true });
 const path_1 = require('path');
 const ts = require('typescript');
 const fs = require('fs');
+const { relative, join } = require('path');
 
 /**
  * Custom resolver which will respect package exports (until Jest supports it natively
@@ -62,23 +63,35 @@ module.exports = function (path, options) {
   }
   // Try to use the defaultResolver
   try {
-    if (path.startsWith('@nrwl/')) throw new Error('custom resolution');
+    if (path.startsWith('@nx/')) throw new Error('custom resolution');
+    if (path.startsWith('nx/')) throw new Error('custom resolution');
 
-    if (path.indexOf('@nrwl/workspace') > -1) {
-      throw 'Reference to local Nx package found. Use local version instead.';
+    if (path.indexOf('@nx/workspace') > -1) {
+      throw new Error(
+        'Reference to local Nx package found. Use local version instead.'
+      );
     }
 
     // Global modules which must be resolved by defaultResolver
-    if (['fs', 'http', 'path'].includes(path)) {
+    if (['child_process', 'fs', 'http', 'path'].includes(path)) {
       return options.defaultResolver(path, options);
     }
 
-    return enhancedResolver(options.basedir, path);
+    return enhancedResolver(path_1.resolve(options.basedir), path);
   } catch (e) {
     // Fallback to using typescript
     compilerSetup = compilerSetup || getCompilerSetup(options.rootDir);
     const { compilerOptions, host } = compilerSetup;
-    return ts.resolveModuleName(path, options.basedir, compilerOptions, host)
-      .resolvedModule.resolvedFileName;
+    const name = ts.resolveModuleName(
+      path,
+      join(options.basedir, 'fake-placeholder.ts'),
+      compilerOptions,
+      host
+    ).resolvedModule.resolvedFileName;
+    if (name.startsWith('..')) {
+      return path_1.join(options.rootDir, name);
+    } else {
+      return name;
+    }
   }
 };

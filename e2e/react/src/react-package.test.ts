@@ -1,20 +1,18 @@
 import {
-  checkFilesDoNotExist,
   checkFilesExist,
-  getSize,
+  cleanupProject,
   killPorts,
   newProject,
   readFile,
-  readJson,
   rmDist,
   runCLI,
   runCLIAsync,
-  tmpProjPath,
   uniq,
   updateFile,
-  updateProjectConfig,
-} from '@nrwl/e2e/utils';
-import { names } from '@nrwl/devkit';
+  updateJson,
+} from '@nx/e2e/utils';
+import { names } from '@nx/devkit';
+import { join } from 'path';
 
 describe('Build React libraries and apps', () => {
   /**
@@ -34,13 +32,13 @@ describe('Build React libraries and apps', () => {
 
   let proj: string;
 
-  beforeEach(() => {
+  beforeEach(async () => {
     app = uniq('app');
     parentLib = uniq('parentlib');
     childLib = uniq('childlib');
     childLib2 = uniq('childlib2');
 
-    proj = newProject();
+    proj = newProject({ packages: ['@nx/react'] });
 
     // create dependencies by importing
     const createDep = (parent, children: string[]) => {
@@ -63,17 +61,27 @@ describe('Build React libraries and apps', () => {
       );
     };
 
-    runCLI(`generate @nrwl/react:app ${app} `);
-
+    runCLI(`generate @nx/react:app ${app} `);
+    updateJson('nx.json', (json) => ({
+      ...json,
+      generators: {
+        ...json.generators,
+        '@nx/react': {
+          library: {
+            unitTestRunner: 'none',
+          },
+        },
+      },
+    }));
     // generate buildable libs
     runCLI(
-      `generate @nrwl/react:library ${parentLib} --buildable --importPath=@${proj}/${parentLib} --no-interactive `
+      `generate @nx/react:library ${parentLib} --bundler=rollup --importPath=@${proj}/${parentLib} --no-interactive --unitTestRunner=jest --skipFormat`
     );
     runCLI(
-      `generate @nrwl/react:library ${childLib} --buildable --importPath=@${proj}/${childLib} --no-interactive `
+      `generate @nx/react:library ${childLib} --bundler=rollup --importPath=@${proj}/${childLib} --no-interactive --unitTestRunner=jest --skipFormat`
     );
     runCLI(
-      `generate @nrwl/react:library ${childLib2} --buildable --importPath=@${proj}/${childLib2} --no-interactive `
+      `generate @nx/react:library ${childLib2} --bundler=rollup --importPath=@${proj}/${childLib2} --no-interactive --unitTestRunner=jest --skipFormat`
     );
 
     createDep(parentLib, [childLib, childLib2]);
@@ -87,21 +95,29 @@ describe('Build React libraries and apps', () => {
     );
 
     // Add assets to child lib
-    updateProjectConfig(childLib, (json) => {
-      json.targets.build.options.assets = [`libs/${childLib}/src/assets`];
-      return json;
-    });
+    updateFile(
+      join('libs', childLib, 'rollup.config.js'),
+      `const { withNx } = require('@nx/rollup/with-nx');
+module.exports = withNx(
+  {
+    main: './src/index.ts',
+    outputPath: '../../dist/libs/${childLib}',
+    tsConfig: './tsconfig.lib.json',
+    compiler: 'babel',
+    external: ['react', 'react-dom', 'react/jsx-runtime'],
+    format: ['esm'],
+    assets: ['./src/assets'],
+  }
+);
+`
+    );
     updateFile(`libs/${childLib}/src/assets/hello.txt`, 'Hello World!');
-
-    // we are setting paths to {} to make sure built libs are read from dist
-    updateFile('tsconfig.base.json', (c) => {
-      const json = JSON.parse(c);
-      json.compilerOptions.paths = {};
-      return JSON.stringify(json, null, 2);
-    });
   });
 
-  afterEach(() => killPorts());
+  afterEach(() => {
+    killPorts();
+    cleanupProject();
+  });
 
   describe('Buildable libraries', () => {
     it('should build libraries with and without dependencies', () => {
@@ -112,32 +128,14 @@ describe('Build React libraries and apps', () => {
       runCLI(`build ${childLib2}`);
 
       checkFilesExist(`dist/libs/${childLib}/index.esm.js`);
-      checkFilesExist(`dist/libs/${childLib}/index.umd.js`);
 
       checkFilesExist(`dist/libs/${childLib2}/index.esm.js`);
-      checkFilesExist(`dist/libs/${childLib2}/index.umd.js`);
 
       checkFilesExist(`dist/libs/${childLib}/assets/hello.txt`);
       checkFilesExist(`dist/libs/${childLib2}/README.md`);
 
       /*
-       * 2. With dependencies
-       */
-      runCLI(`build ${parentLib}`);
-
-      checkFilesExist(`dist/libs/${parentLib}/index.esm.js`);
-      checkFilesExist(`dist/libs/${parentLib}/index.umd.js`);
-
-      const jsonFile = readJson(`dist/libs/${parentLib}/package.json`);
-      expect(jsonFile.peerDependencies).toEqual(
-        expect.objectContaining({
-          [`@${proj}/${childLib}`]: '0.0.1',
-          [`@${proj}/${childLib2}`]: '0.0.1',
-        })
-      );
-
-      /*
-       * 3. With dependencies without existing dist
+       * 2. With dependencies without existing dist
        */
       rmDist();
 
@@ -146,44 +144,20 @@ describe('Build React libraries and apps', () => {
       checkFilesExist(`dist/libs/${parentLib}/index.esm.js`);
       checkFilesExist(`dist/libs/${childLib}/index.esm.js`);
       checkFilesExist(`dist/libs/${childLib2}/index.esm.js`);
-    });
 
-    it('should support --format option', () => {
-      updateFile(
-        `libs/${childLib}/src/index.ts`,
-        (s) => `${s}
-export async function f() { return 'a'; }
-export async function g() { return 'b'; }
-export async function h() { return 'c'; }
-`
+      expect(readFile(`dist/libs/${childLib}/index.esm.js`)).not.toContain(
+        'react/jsx-dev-runtime'
       );
-
-      runCLI(`build ${childLib} --format cjs,esm,umd`);
-
-      checkFilesExist(`dist/libs/${childLib}/index.cjs.js`);
-      checkFilesExist(`dist/libs/${childLib}/index.esm.js`);
-      checkFilesExist(`dist/libs/${childLib}/index.umd.js`);
-
-      const cjsPackageSize = getSize(
-        tmpProjPath(`dist/libs/${childLib}/index.cjs.js`)
+      expect(readFile(`dist/libs/${childLib}/index.esm.js`)).toContain(
+        'react/jsx-runtime'
       );
-      const esmPackageSize = getSize(
-        tmpProjPath(`dist/libs/${childLib}/index.esm.js`)
-      );
-      const umdPackageSize = getSize(
-        tmpProjPath(`dist/libs/${childLib}/index.umd.js`)
-      );
-
-      // This is a loose requirement that ESM and CJS packages should be less than the UMD counterpart.
-      expect(esmPackageSize).toBeLessThanOrEqual(umdPackageSize);
-      expect(cjsPackageSize).toBeLessThanOrEqual(umdPackageSize);
     });
 
     it('should preserve the tsconfig target set by user', () => {
       // Setup
       const myLib = uniq('my-lib');
       runCLI(
-        `generate @nrwl/react:library ${myLib} --publishable --importPath="@mproj/${myLib}" --no-interactive`
+        `generate @nx/react:library ${myLib} --bundler=rollup --publishable --importPath="@mproj/${myLib}" --no-interactive --unitTestRunner=jest`
       );
 
       /**
@@ -212,10 +186,10 @@ export async function h() { return 'c'; }
         const json = JSON.parse(content);
 
         /**
-         * Set target as es3!!
+         * Set target as es5!!
          */
 
-        json.compilerOptions.target = 'es3';
+        json.compilerOptions.target = 'es5';
         return JSON.stringify(json, null, 2);
       });
       // What we're testing
@@ -230,33 +204,18 @@ export async function h() { return 'c'; }
       expect(content).toContain('function __generator(thisArg, body) {');
     });
 
-    it('should build an app composed out of buildable libs', () => {
-      const buildFromSource = runCLI(
-        `build ${app} --buildLibsFromSource=false`
-      );
-      expect(buildFromSource).toContain(`Running target "build" succeeded`);
-      checkFilesDoNotExist(`apps/${app}/tsconfig/tsconfig.nx-tmp`);
-
-      // we remove all path mappings from the root tsconfig, so when trying to build
-      // libs from source, the builder will throw
-      const failedBuild = runCLI(`build ${app} --buildLibsFromSource`, {
-        silenceError: true,
-      });
-      expect(failedBuild).toContain(`Can't resolve`);
-    }, 1000000);
-
     it('should not create a dist folder if there is an error', async () => {
       const libName = uniq('lib');
 
       runCLI(
-        `generate @nrwl/react:lib ${libName} --buildable --importPath=@${proj}/${libName} --no-interactive`
+        `generate @nx/react:lib ${libName} --bundler=rollup --importPath=@${proj}/${libName} --no-interactive --unitTestRunner=jest`
       );
 
       const mainPath = `libs/${libName}/src/lib/${libName}.tsx`;
       updateFile(mainPath, `${readFile(mainPath)}\n console.log(a);`); // should error - "a" will be undefined
 
       await expect(runCLIAsync(`build ${libName}`)).rejects.toThrow(
-        /Bundle failed/
+        /Command failed/
       );
       expect(() => {
         checkFilesExist(`dist/libs/${libName}/package.json`);

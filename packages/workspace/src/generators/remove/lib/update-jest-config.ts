@@ -3,24 +3,47 @@ import {
   ChangeType,
   ProjectConfiguration,
   Tree,
-} from '@nrwl/devkit';
+} from '@nx/devkit';
 import { getSourceNodes } from '../../../utilities/typescript/get-source-nodes';
 
 import { Schema } from '../schema';
-import {
+import type {
   ArrayLiteralExpression,
-  createSourceFile,
-  isArrayLiteralExpression,
-  isPropertyAssignment,
-  isStringLiteral,
   PropertyAssignment,
-  ScriptTarget,
   StringLiteral,
 } from 'typescript';
 import { join } from 'path';
+import { ensureTypescript } from '../../../utilities/typescript';
+import { findRootJestConfig } from '../../utils/jest-config';
+
+let tsModule: typeof import('typescript');
 
 function isUsingUtilityFunction(host: Tree) {
-  return host.read('jest.config.js').toString().includes('getJestProjects()');
+  const rootConfigPath = findRootJestConfig(host);
+  if (!rootConfigPath) {
+    return false;
+  }
+
+  const rootConfig = host.read(rootConfigPath, 'utf-8');
+
+  return (
+    rootConfig.includes('getJestProjects()') ||
+    rootConfig.includes('getJestProjectsAsync()')
+  );
+}
+
+/**
+ * in a standalone project, the root jest.config.ts is a project config instead
+ * of multi-project config.
+ * in that case we do not need to edit it to remove it
+ **/
+function isMonorepoConfig(tree: Tree) {
+  const rootConfigPath = findRootJestConfig(tree);
+  if (!rootConfigPath) {
+    return false;
+  }
+
+  return tree.read(rootConfigPath, 'utf-8').includes('projects:');
 }
 
 /**
@@ -31,19 +54,33 @@ export function updateJestConfig(
   schema: Schema,
   projectConfig: ProjectConfiguration
 ) {
+  if (!tsModule) {
+    tsModule = ensureTypescript();
+  }
+  const {
+    createSourceFile,
+    ScriptTarget,
+    isPropertyAssignment,
+    isArrayLiteralExpression,
+    isStringLiteral,
+  } = tsModule;
   const projectToRemove = schema.projectName;
 
+  const rootConfigPath = findRootJestConfig(tree);
+
   if (
-    !tree.exists('jest.config.js') ||
-    !tree.exists(join(projectConfig.root, 'jest.config.js')) ||
-    isUsingUtilityFunction(tree)
+    !rootConfigPath ||
+    !tree.exists(rootConfigPath) ||
+    !tree.exists(join(projectConfig.root, 'jest.config.ts')) ||
+    isUsingUtilityFunction(tree) ||
+    !isMonorepoConfig(tree)
   ) {
     return;
   }
 
-  const contents = tree.read('jest.config.js', 'utf-8');
+  const contents = tree.read(rootConfigPath, 'utf-8');
   const sourceFile = createSourceFile(
-    'jest.config.js',
+    rootConfigPath,
     contents,
     ScriptTarget.Latest
   );
@@ -59,7 +96,7 @@ export function updateJestConfig(
 
   if (!projectsAssignment) {
     throw Error(
-      `Could not remove ${projectToRemove} from projects in /jest.config.js. Please remove ${projectToRemove} from your projects.`
+      `Could not remove ${projectToRemove} from projects in /jest.config.ts. Please remove ${projectToRemove} from your projects.`
     );
   }
   const projectsArray =
@@ -73,7 +110,7 @@ export function updateJestConfig(
 
   if (!project) {
     console.warn(
-      `Could not find ${projectToRemove} in projects in /jest.config.js.`
+      `Could not find ${projectToRemove} in projects in /jest.config.ts.`
     );
     return;
   }
@@ -86,7 +123,7 @@ export function updateJestConfig(
     : project.getStart(sourceFile);
 
   tree.write(
-    'jest.config.js',
+    rootConfigPath,
     applyChangesToString(contents, [
       {
         type: ChangeType.Delete,

@@ -1,28 +1,41 @@
 const path = require('path');
-const { createGlobPatternsForDependencies } = require('@nrwl/next/tailwind');
+// Ignore @nx/next dependency since it is the installed version not the one in the workspace
+// nx-ignore-next-line
+const { createGlobPatternsForDependencies } = require('@nx/next/tailwind');
+const plugin = require('tailwindcss/plugin');
+
+if (!createGlobPatternsForDependencies(__dirname).length)
+  throw Error('GRAPH ISSUE: No dependency found when many are expected.');
+
+const FlipAnimation = plugin(function ({ addUtilities }) {
+  addUtilities({
+    '.my-rotate-y-180': {
+      transform: 'rotateY(180deg)',
+    },
+    '.preserve-3d': {
+      transformStyle: 'preserve-3d',
+    },
+    '.perspective': {
+      perspective: '1000px',
+    },
+    '.backface-hidden': {
+      backfaceVisibility: 'hidden',
+    },
+  });
+});
 
 module.exports = {
+  experimental: {
+    optimizeUniversalDefaults: true,
+  },
   mode: 'jit',
-  purge: [
-    path.join(__dirname, 'pages/**/*.{js,ts,jsx,tsx}'),
+  darkMode: 'class',
+  content: [
+    path.join(__dirname, '{pages,app}/**/*.{js,ts,jsx,tsx}'),
     ...createGlobPatternsForDependencies(__dirname),
   ],
-  darkMode: false, // or 'media' or 'class'
   theme: {
     extend: {
-      colors: {
-        black: 'hsla(0, 0%, 13%, 1)',
-        blue: {
-          'nx-dark': 'hsla(214, 61%, 11%, 1)',
-          'nx-base': 'hsla(214, 62%, 21%, 1)',
-        },
-        green: {
-          'nx-base': 'hsla(162, 47%, 50%, 1)',
-        },
-        purple: {
-          'nx-base': 'hsla(258, 76%, 62%, 1)',
-        },
-      },
       typography: {
         DEFAULT: {
           css: {
@@ -43,12 +56,10 @@ module.exports = {
       },
     },
   },
-  variants: {
-    extend: {},
-  },
   plugins: [
     require('@tailwindcss/aspect-ratio'),
     require('@tailwindcss/typography'),
     require('@tailwindcss/forms'),
+    FlipAnimation,
   ],
 };

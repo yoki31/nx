@@ -5,7 +5,7 @@
  *
  * ```typescript
  * names("my-name") // {name: 'my-name', className: 'MyName', propertyName: 'myName', constantName: 'MY_NAME', fileName: 'my-name'}
- * names("myName") // {name: 'my-name', className: 'MyName', propertyName: 'myName', constantName: 'MY_NAME', fileName: 'my-name'}
+ * names("myName") // {name: 'myName', className: 'MyName', propertyName: 'myName', constantName: 'MY_NAME', fileName: 'my-name'}
  * ```
  * @param name
  */
@@ -48,7 +48,10 @@ function toPropertyName(s: string): string {
  * Hyphenated to CONSTANT_CASE
  */
 function toConstantName(s: string): string {
-  return s.replace(/([^a-zA-Z0-9])/g, '_').toUpperCase();
+  const normalizedS = s.toUpperCase() === s ? s.toLowerCase() : s;
+  return toFileName(toPropertyName(normalizedS))
+    .replace(/([^a-zA-Z0-9])/g, '_')
+    .toUpperCase();
 }
 
 /**
@@ -58,12 +61,12 @@ function toFileName(s: string): string {
   return s
     .replace(/([a-z\d])([A-Z])/g, '$1_$2')
     .toLowerCase()
-    .replace(/[ _]/g, '-');
+    .replace(/(?!^[_])[ _]/g, '-');
 }
 
 /**
  * Capitalizes the first letter of a string
  */
 function toCapitalCase(s: string): string {
-  return s.charAt(0).toUpperCase() + s.substr(1);
+  return s.charAt(0).toUpperCase() + s.slice(1);
 }

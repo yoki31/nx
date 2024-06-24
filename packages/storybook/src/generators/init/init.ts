@@ -1,176 +1,154 @@
 import {
   addDependenciesToPackageJson,
-  convertNxGenerator,
-  readJson,
-  readWorkspaceConfiguration,
+  createProjectGraphAsync,
+  formatFiles,
+  GeneratorCallback,
+  installPackagesTask,
+  readNxJson,
+  runTasksInSerial,
   Tree,
   updateJson,
-  updateWorkspaceConfiguration,
-} from '@nrwl/devkit';
-import { isFramework } from '../../utils/utilities';
+  updateNxJson,
+} from '@nx/devkit';
+import { addPluginV1 } from '@nx/devkit/src/utils/add-plugin';
+import { gte } from 'semver';
+import { createNodes } from '../../plugins/plugin';
 import {
-  babelCoreVersion,
-  babelLoaderVersion,
-  babelPresetTypescriptVersion,
-  nxVersion,
-  storybookVersion,
-  svgrVersion,
-  urlLoaderVersion,
-} from '../../utils/versions';
+  getInstalledStorybookVersion,
+  storybookMajorVersion,
+} from '../../utils/utilities';
+import { nxVersion, storybookVersion } from '../../utils/versions';
 import { Schema } from './schema';
+import { updateGitignore } from './lib/update-gitignore';
 
-function checkDependenciesInstalled(host: Tree, schema: Schema) {
-  const packageJson = readJson(host, 'package.json');
-  const devDependencies = {};
-  const dependencies = {};
-  packageJson.dependencies = packageJson.dependencies || {};
-  packageJson.devDependencices = packageJson.devDependencices || {};
+function checkDependenciesInstalled(
+  host: Tree,
+  schema: Schema
+): GeneratorCallback {
+  const devDependencies: Record<string, string> = {
+    '@nx/storybook': nxVersion,
+    '@nx/web': nxVersion,
+  };
 
-  // base deps
-  devDependencies['@nrwl/storybook'] = nxVersion;
-
-  /**
-   * If Storybook already exists, do NOT update it to the latest version.
-   * Leave it alone.
-   */
-
-  if (
-    !packageJson.dependencies['@storybook/addon-essentials'] &&
-    !packageJson.devDependencies['@storybook/addon-essentials']
-  ) {
-    devDependencies['@storybook/addon-essentials'] = storybookVersion;
-  }
-
-  if (isFramework('angular', schema)) {
+  if (schema.addPlugin) {
+    let storybook7VersionToInstall = storybookVersion;
     if (
-      !packageJson.dependencies['@storybook/angular'] &&
-      !packageJson.devDependencies['@storybook/angular']
+      storybookMajorVersion() >= 7 &&
+      getInstalledStorybookVersion() &&
+      gte(getInstalledStorybookVersion(), '7.0.0')
     ) {
-      devDependencies['@storybook/angular'] = storybookVersion;
+      storybook7VersionToInstall = getInstalledStorybookVersion();
     }
 
-    if (
-      !packageJson.dependencies['@storybook/builder-webpack5'] &&
-      !packageJson.devDependencies['@storybook/builder-webpack5']
-    ) {
-      devDependencies['@storybook/builder-webpack5'] = storybookVersion;
-    }
-
-    if (
-      !packageJson.dependencies['@storybook/manager-webpack5'] &&
-      !packageJson.devDependencies['@storybook/manager-webpack5']
-    ) {
-      devDependencies['@storybook/manager-webpack5'] = storybookVersion;
-    }
-
-    if (
-      !packageJson.dependencies['@angular/forms'] &&
-      !packageJson.devDependencies['@angular/forms']
-    ) {
-      devDependencies['@angular/forms'] = '*';
-    }
+    devDependencies['storybook'] = storybook7VersionToInstall;
   }
 
-  if (isFramework('react', schema)) {
-    devDependencies['@storybook/react'] = storybookVersion;
-    devDependencies['@svgr/webpack'] = svgrVersion;
-    devDependencies['url-loader'] = urlLoaderVersion;
-    devDependencies['babel-loader'] = babelLoaderVersion;
-    devDependencies['@babel/core'] = babelCoreVersion;
-    devDependencies['@babel/preset-typescript'] = babelPresetTypescriptVersion;
-
-    if (
-      !packageJson.dependencies['@storybook/react'] &&
-      !packageJson.devDependencies['@storybook/react']
-    ) {
-      devDependencies['@storybook/react'] = storybookVersion;
-    }
-
-    if (
-      !packageJson.dependencies['@storybook/builder-webpack5'] &&
-      !packageJson.devDependencies['@storybook/builder-webpack5']
-    ) {
-      devDependencies['@storybook/builder-webpack5'] = storybookVersion;
-    }
-
-    if (
-      !packageJson.dependencies['@storybook/manager-webpack5'] &&
-      !packageJson.devDependencies['@storybook/manager-webpack5']
-    ) {
-      devDependencies['@storybook/manager-webpack5'] = storybookVersion;
-    }
-  }
-  if (isFramework('html', schema)) {
-    devDependencies['@storybook/html'] = storybookVersion;
-  }
-
-  if (isFramework('vue', schema)) {
-    devDependencies['@storybook/vue'] = storybookVersion;
-  }
-
-  if (isFramework('vue3', schema)) {
-    devDependencies['@storybook/vue3'] = storybookVersion;
-  }
-
-  if (isFramework('web-components', schema)) {
-    devDependencies['@storybook/web-components'] = storybookVersion;
-  }
-
-  if (isFramework('svelte', schema)) {
-    devDependencies['@storybook/svelte'] = storybookVersion;
-  }
-
-  return addDependenciesToPackageJson(host, dependencies, devDependencies);
+  return addDependenciesToPackageJson(
+    host,
+    {},
+    devDependencies,
+    undefined,
+    schema.keepExistingVersions
+  );
 }
 
-export function addCacheableOperation(tree: Tree) {
-  const workspace = readWorkspaceConfiguration(tree);
-  if (
-    !workspace.tasksRunnerOptions ||
-    !workspace.tasksRunnerOptions.default ||
-    workspace.tasksRunnerOptions.default.runner !==
-      '@nrwl/workspace/tasks-runners/default'
-  ) {
-    return;
-  }
+function addCacheableOperation(tree: Tree) {
+  const nxJson = readNxJson(tree);
+  const cacheableOperations: string[] | null =
+    nxJson.tasksRunnerOptions?.default?.options?.cacheableOperations;
 
-  workspace.tasksRunnerOptions.default.options =
-    workspace.tasksRunnerOptions.default.options || {};
-
-  workspace.tasksRunnerOptions.default.options.cacheableOperations =
-    workspace.tasksRunnerOptions.default.options.cacheableOperations || [];
-  if (
-    !workspace.tasksRunnerOptions.default.options.cacheableOperations.includes(
-      'build-storybook'
-    )
-  ) {
-    workspace.tasksRunnerOptions.default.options.cacheableOperations.push(
+  if (cacheableOperations && cacheableOperations.includes('build-storybook')) {
+    nxJson.tasksRunnerOptions.default.options.cacheableOperations.push(
       'build-storybook'
     );
   }
-  updateWorkspaceConfiguration(tree, workspace);
+
+  nxJson.targetDefaults ??= {};
+  nxJson.targetDefaults['build-storybook'] ??= {};
+  nxJson.targetDefaults['build-storybook'].cache = true;
+
+  updateNxJson(tree, nxJson);
 }
 
-function moveToDevDependencies(tree: Tree) {
+function moveToDevDependencies(tree: Tree): GeneratorCallback {
+  let updated = false;
+
   updateJson(tree, 'package.json', (packageJson) => {
     packageJson.dependencies = packageJson.dependencies || {};
     packageJson.devDependencies = packageJson.devDependencies || {};
 
-    if (packageJson.dependencies['@nrwl/storybook']) {
-      packageJson.devDependencies['@nrwl/storybook'] =
-        packageJson.dependencies['@nrwl/storybook'];
-      delete packageJson.dependencies['@nrwl/storybook'];
+    if (packageJson.dependencies['@nx/storybook']) {
+      packageJson.devDependencies['@nx/storybook'] =
+        packageJson.dependencies['@nx/storybook'];
+      delete packageJson.dependencies['@nx/storybook'];
+      updated = true;
     }
+
     return packageJson;
   });
+
+  return updated ? () => installPackagesTask(tree) : () => {};
 }
 
 export function initGenerator(tree: Tree, schema: Schema) {
-  const installTask = checkDependenciesInstalled(tree, schema);
-  moveToDevDependencies(tree);
-  addCacheableOperation(tree);
-  return installTask;
+  return initGeneratorInternal(tree, { addPlugin: false, ...schema });
+}
+
+export async function initGeneratorInternal(tree: Tree, schema: Schema) {
+  const nxJson = readNxJson(tree);
+  const addPluginDefault =
+    process.env.NX_ADD_PLUGINS !== 'false' &&
+    nxJson.useInferencePlugins !== false;
+  schema.addPlugin ??= addPluginDefault;
+
+  if (schema.addPlugin) {
+    await addPluginV1(
+      tree,
+      await createProjectGraphAsync(),
+      '@nx/storybook/plugin',
+      createNodes,
+      {
+        serveStorybookTargetName: [
+          'storybook',
+          'serve:storybook',
+          'serve-storybook',
+          'storybook:serve',
+          'storybook-serve',
+        ],
+        buildStorybookTargetName: [
+          'build-storybook',
+          'build:storybook',
+          'storybook:build',
+        ],
+        testStorybookTargetName: [
+          'test-storybook',
+          'test:storybook',
+          'storybook:test',
+        ],
+        staticStorybookTargetName: [
+          'static-storybook',
+          'static:storybook',
+          'storybook:static',
+        ],
+      },
+      schema.updatePackageScripts
+    );
+    updateGitignore(tree);
+  } else {
+    addCacheableOperation(tree);
+  }
+
+  const tasks: GeneratorCallback[] = [];
+  if (!schema.skipPackageJson) {
+    tasks.push(moveToDevDependencies(tree));
+    tasks.push(checkDependenciesInstalled(tree, schema));
+  }
+
+  if (!schema.skipFormat) {
+    await formatFiles(tree);
+  }
+
+  return runTasksInSerial(...tasks);
 }
 
 export default initGenerator;
-export const initSchematic = convertNxGenerator(initGenerator);

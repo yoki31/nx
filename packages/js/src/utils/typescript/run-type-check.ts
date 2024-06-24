@@ -1,8 +1,9 @@
-import { readTsConfig } from '@nrwl/workspace/src/utilities/typescript';
 import * as chalk from 'chalk';
 import * as path from 'path';
 import type { BuilderProgram, Diagnostic, Program } from 'typescript';
-import { codeFrameColumns } from '../code-frames/code-frames';
+import { codeFrameColumns } from 'nx/src/utils/code-frames';
+import { highlight } from '../code-frames/highlight';
+import { readTsConfig } from '../../utils/typescript/ts-config';
 
 export interface TypeCheckResult {
   warnings?: string[];
@@ -18,6 +19,8 @@ interface BaseTypeCheckOptions {
   workspaceRoot: string;
   tsConfigPath: string;
   cacheDir?: string;
+  incremental?: boolean;
+  rootDir?: string;
 }
 
 type Mode = NoEmitMode | EmitDeclarationOnlyMode;
@@ -115,10 +118,12 @@ export async function runTypeCheck(
 
 async function setupTypeScript(options: TypeCheckOptions) {
   const ts = await import('typescript');
-  const { workspaceRoot, tsConfigPath, cacheDir } = options;
+  const { workspaceRoot, tsConfigPath, cacheDir, incremental, rootDir } =
+    options;
   const config = readTsConfig(tsConfigPath);
   if (config.errors.length) {
-    throw new Error(`Invalid config file: ${config.errors}`);
+    const errorMessages = config.errors.map((e) => e.messageText).join('\n');
+    throw new Error(`Invalid config file due to following: ${errorMessages}`);
   }
 
   const emitOptions =
@@ -130,7 +135,10 @@ async function setupTypeScript(options: TypeCheckOptions) {
     ...config.options,
     skipLibCheck: true,
     ...emitOptions,
+    incremental,
+    rootDir: rootDir || config.options.rootDir,
   };
+
   return { ts, workspaceRoot, cacheDir, config, compilerOptions };
 }
 
@@ -202,13 +210,16 @@ export function getFormattedDiagnostic(
     message =
       `${chalk.underline.blue(`${fileName}:${line}:${column}`)} - ` + message;
 
+    const code = diagnostic.file.getFullText(diagnostic.file.getSourceFile());
+
     message +=
       '\n' +
       codeFrameColumns(
-        diagnostic.file.getFullText(diagnostic.file.getSourceFile()),
+        code,
         {
           start: { line: line, column },
-        }
+        },
+        { highlight }
       );
   }
 

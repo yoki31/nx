@@ -1,15 +1,15 @@
-import { UnitTestRunner } from '../../utils/test-runners';
-import { Linter } from '@nrwl/linter';
-
-type AngularLinter = Exclude<Linter, Linter.TsLint>;
+import type { ProjectNameAndRootFormat } from '@nx/devkit/src/generators/project-name-and-root-utils';
+import type { Linter } from '@nx/eslint';
+import type { UnitTestRunner } from '../../utils/test-runners';
 
 export interface Schema {
   name: string;
   addTailwind?: boolean;
   skipFormat?: boolean;
-  simpleModuleName?: boolean;
+  simpleName?: boolean;
   addModuleSpec?: boolean;
   directory?: string;
+  projectNameAndRootFormat?: ProjectNameAndRootFormat;
   sourceDir?: string;
   buildable?: boolean;
   publishable?: boolean;
@@ -21,12 +21,24 @@ export interface Schema {
   prefix?: string;
   routing?: boolean;
   lazy?: boolean;
-  parentModule?: string;
+  parent?: string;
   tags?: string;
   strict?: boolean;
-  linter?: AngularLinter;
+  linter?: Linter;
   unitTestRunner?: UnitTestRunner;
   compilationMode?: 'full' | 'partial';
   setParserOptionsProject?: boolean;
   skipModule?: boolean;
+  skipPackageJson?: boolean;
+  standalone?: boolean;
+  displayBlock?: boolean;
+  inlineStyle?: boolean;
+  inlineTemplate?: boolean;
+  viewEncapsulation?: 'Emulated' | 'None' | 'ShadowDom';
+  changeDetection?: 'Default' | 'OnPush';
+  style?: 'css' | 'scss' | 'sass' | 'less' | 'none';
+  skipTests?: boolean;
+  selector?: string;
+  skipSelector?: boolean;
+  addPlugin?: boolean;
 }

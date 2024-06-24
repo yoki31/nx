@@ -1,9 +1,4 @@
-import { RawWorkspaceJsonConfiguration } from '@nrwl/tao/src/shared/workspace';
-
-import { readNxJson } from '../generators/project-configuration';
-import { readJson } from './json';
-
-import type { Tree } from '@nrwl/tao/src/shared/tree';
+import { readNxJson, Tree } from 'nx/src/devkit-exports';
 
 /**
  * Returns workspace defaults. It includes defaults folders for apps and libs,
@@ -12,7 +7,7 @@ import type { Tree } from '@nrwl/tao/src/shared/tree';
  * Example:
  *
  * ```typescript
- * { appsDir: 'apps', libsDir: 'libs', npmScope: 'myorg' }
+ * { appsDir: 'apps', libsDir: 'libs' }
  * ```
  * @param tree - file system tree
  */
@@ -20,40 +15,47 @@ export function getWorkspaceLayout(tree: Tree): {
   appsDir: string;
   libsDir: string;
   standaloneAsDefault: boolean;
-  npmScope: string;
 } {
   const nxJson = readNxJson(tree);
-  const workspacePath = getWorkspacePath(tree);
-  const rawWorkspace =
-    workspacePath && tree.exists(workspacePath)
-      ? readJson<RawWorkspaceJsonConfiguration>(tree, workspacePath)
-      : null;
-
   return {
-    appsDir: nxJson?.workspaceLayout?.appsDir ?? 'apps',
-    libsDir: nxJson?.workspaceLayout?.libsDir ?? 'libs',
-    npmScope: nxJson?.npmScope ?? '',
-    standaloneAsDefault: !rawWorkspace
-      ? true // if workspace.json doesn't exist, all projects **must** be standalone
-      : Object.values(rawWorkspace.projects).reduce(
-          // default for second, third... projects should be based on all projects being defined as a path
-          // for configuration read from ng schematics, this is determined by configFilePath's presence
-          (allStandalone, next) =>
-            allStandalone &&
-            (typeof next === 'string' || 'configFilePath' in next),
-
-          // default for first project should be true if using Nx Schema
-          rawWorkspace.version > 1
-        ),
+    appsDir:
+      nxJson?.workspaceLayout?.appsDir ??
+      inOrderOfPreference(tree, ['apps', 'packages'], '.'),
+    libsDir:
+      nxJson?.workspaceLayout?.libsDir ??
+      inOrderOfPreference(tree, ['libs', 'packages'], '.'),
+    standaloneAsDefault: true,
   };
 }
 
-export function getWorkspacePath(
-  tree: Tree
-): '/angular.json' | '/workspace.json' | null {
-  const possibleFiles: ('/angular.json' | '/workspace.json')[] = [
-    '/angular.json',
-    '/workspace.json',
-  ];
-  return possibleFiles.filter((path) => tree.exists(path))[0];
+/**
+ * Experimental
+ */
+export function extractLayoutDirectory(directory?: string): {
+  layoutDirectory: string | null;
+  projectDirectory?: string;
+} {
+  if (directory) {
+    directory = directory.startsWith('/') ? directory.substring(1) : directory;
+    for (let dir of ['apps', 'libs', 'packages']) {
+      if (directory.startsWith(dir + '/') || directory === dir) {
+        return {
+          layoutDirectory: dir,
+          projectDirectory: directory.substring(dir.length + 1),
+        };
+      }
+    }
+  }
+  return { layoutDirectory: null, projectDirectory: directory };
+}
+
+function inOrderOfPreference(
+  tree: Tree,
+  selectedFolders: string[],
+  defaultChoice: string
+) {
+  for (let i = 0; i < selectedFolders.length; ++i) {
+    if (tree.exists(selectedFolders[i])) return selectedFolders[i];
+  }
+  return defaultChoice;
 }

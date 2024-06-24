@@ -1,8 +1,6 @@
 # React Native with Nx
 
-![](/shared/react-logo.png)
-
-Nx provides a holistic dev experience powered by an advanced CLI and editor plugins. It provides rich support for common tools like [Detox](/{{version}}/{{framework}}/detox/overview), Storybook, Jest, and more.
+Nx provides a holistic dev experience powered by an advanced CLI and editor plugins. It provides rich support for common tools like [Detox](/nx-api/detox), Storybook, Jest, and more.
 
 In this guide we will show you how to develop [React Native](https://reactnative.dev/) applications with Nx.
 
@@ -10,126 +8,170 @@ In this guide we will show you how to develop [React Native](https://reactnative
 
 The easiest way to create your workspace is via `npx`.
 
-```bash
+```shell
 npx create-nx-workspace happynrwl \
 --preset=react-native \
 --appName=mobile
 ```
 
-**Note:** You can also run the command without arguments to go through the interactive prompts.
+{% callout type="note" title="Don't know what you need?" %}
+You can also run the command without arguments to go through the interactive prompts.
+{% /callout %}
 
-```bash
+```shell
 npx create-nx-workspace happynrwl
 ```
 
 Once the command completes, the workspace will look as follows:
 
-```treeview
+```text
 happynrwl/
-├── apps
-│   ├── mobile
+├── apps/
+│   ├── mobile/
 │   │   ├── app.json
 │   │   ├── metro.config.js
-│   │   ├── android
-│   │   │   ├── app
-│   │   │   ├── gradle
+│   │   ├── android/
+│   │   │   ├── app/
+│   │   │   ├── gradle/
 │   │   │   ├── build.gradle
 │   │   │   ├── gradle.properties
 │   │   │   ├── gradlew
 │   │   │   ├── settings.gradle
-│   │   ├── ios
-│   │   │   ├── Mobile
-│   │   │   ├── Mobile.xcodeproj
-│   │   │   ├── Mobile.xcworkspace
-│   │   │   ├── Prodfile
-│   │   │   ├── Prodfile.lock
-│   │   ├── src
+│   │   ├── ios/
+│   │   │   ├── Mobile/
+│   │   │   ├── Mobile.xcodeproj/
+│   │   │   ├── Mobile.xcworkspace/
+│   │   │   ├── Podfile
+│   │   │   ├── Podfile.lock
+│   │   ├── src/
 │   │   │   ├── main.tsx
-│   │   │   └── app
+│   │   │   └── app/
 │   │   │       ├── App.tsx
 │   │   │       └── App.spec.tsx
 │   │   ├── .babelrc
-│   │   ├── jest.config.js
+│   │   ├── jest.config.ts
 │   │   ├── test-setup.ts
 │   │   ├── package.json
 │   │   ├── project.json
 │   │   ├── tsconfig.json
 │   │   ├── tsconfig.app.json
 │   │   └── tsconfig.spec.json
-│   └── mobile-e2e
+│   └── mobile-e2e/
 │       ├── .detoxrc.json
-│       ├── src
+│       ├── src/
 │       │   └── app.spec.ts
 │       ├── .babelrc
 │       ├── jest.config.json
 │       ├── project.json
 │       ├── tsconfig.e2e.json
 │       └── tsconfig.json
-├── libs
-├── tools
-├── jest.config.js
+├── libs/
+├── tools/
+├── babel.config.json
+├── jest.config.ts
 ├── jest.preset.js
 ├── nx.json
 ├── package-lock.json
 ├── package.json
-├── tsconfig.base.json
-└── workspace.json
+└── tsconfig.base.json
 ```
 
-Run `npx nx run-android mobile` to run the applicatoin in development mode on Android simulator/device. Run `npx nx run-ios mobile` to run the applicatoin in developement mode on iOS simulator/device.
+To run the application in development mode:
+
+```shell
+npx nx start mobile
+```
+
+On Android simulator/device:
+
+```shell
+npx nx run-android mobile
+```
+
+iOS simulator/device:
+
+```shell
+npx nx run-ios mobile
+```
 
 Try out other commands as well.
 
 - `nx lint mobile` to lint the application
 - `nx test mobile` to run unit test on the application using Jest
-- `nx serve mobile` to serve the application Javascript bundler that communicates with connected devices. This will start the bundler at http://localhost:8081.
 - `nx sync-deps mobile` to sync app dependencies to its `package.json`.
 
 ### Release build
 
 **Android:**
 
-```sh
+```shell
 npx nx build-android mobile
 ```
 
 **iOS:** (Mac only)
 
-No CLI support yet. Run in the Xcode project. See: https://reactnative.dev/docs/running-on-device
+```shell
+npx nx build-ios mobile
+```
 
 ### E2E
 
 **Android:**
 
-```sh
-npx nx e2e-android mobile-e2e
+{% tabs %}
+{% tab label="Using inferred tasks" %}
+
+{% callout type="note" title="Inferred Tasks" %}
+Since Nx 18, Nx plugins can infer tasks for your projects based on the configuration of different tools. You can read more about it at the [Inferred Tasks concept page](/concepts/inferred-tasks).
+{% /callout %}
+
+```shell
+npx nx test mobile-e2e -- --configuration="android.emu.debug"
 ```
+
+{% /tab %}
+{% tab label="Using explicit targets with executors" %}
+
+```shell
+npx nx test-android mobile-e2e
+```
+
+{% /tab %}
 
 **iOS:** (Mac only)
 
-```sh
-npx nx e2e-ios mobile-e2e
+{% tabs %}
+{% tab label="Using inferred tasks" %}
+
+```shell
+npx nx test mobile-e2e -- --configuration="ios.sim.debug"
 ```
 
-When using React Native in Nx, you get the out-of-the-box support for TypeScript, Detox, and Jest. No need to configure anything: watch mode, source maps, and typings just work.
+{% /tab %}
+{% tab label="Using explicit targets with executors" %}
+
+```shell
+npx nx test-ios mobile-e2e
+```
+
+{% /tab %}
+
+When using React Native in Nx, you get the out-of-the-box support for TypeScript, Detox, and Jest.
 
 ### Adding React Native to an Existing Workspace
 
-For existing Nx workspaces, install the `@nrwl/react-native` package to add React Native capabilities to it.
+For existing Nx workspaces, install the `@nx/react-native` package to add React Native capabilities to it.
 
-```bash
-npm install @nrwl/react-native --save-dev
-
-# Or with yarn
-yarn add @nrwl/react-native --dev
+```shell {% skipRescope=true %}
+nx add @nx/react-native
 ```
 
 ## Generating an Application
 
 To create additional React Native apps run:
 
-```bash
-npx nx g @nrwl/react-native:app
+```shell
+npx nx g @nx/react-native:app mobile --directory=apps/mobile
 ```
 
 ## Generating a Library
@@ -138,27 +180,24 @@ Nx allows you to create libraries with just one command. Some reasons you might 
 
 - Share code between applications
 - Publish a package to be used outside the monorepo
-- Better visualize the architecture using `npx nx dep-graph`
-
-For more information on Nx libraries, see our documentation on [Creating Libraries](/{{version}}/{{framework}}/structure/creating-libraries)
-and [Library Types](/{{version}}/{{framework}}/structure/library-types).
+- Better visualize the architecture using `npx nx graph`
 
 To generate a new library run:
 
-```bash
-npx nx g @nrwl/react-native:lib shared-ui-layout
+```shell
+npx nx g @nx/react-native:lib shared-ui-layout --directory=libs/shared-ui-layout
 ```
 
 And you will see the following:
 
-```treeview
+```text
 happynrwl/
-├── apps
-│   └── mobile
-│   └── mobile-e2e
-├── libs
-│   └── shared-ui-layout
-│       ├── src
+├── apps/
+│   └── mobile/
+│   └── mobile-e2e/
+├── libs/
+│   └── shared-ui-layout/
+│       ├── src/
 │       │   └── index.ts
 │       ├── .babelrc
 │       ├── jest.config.js
@@ -168,14 +207,14 @@ happynrwl/
 │       ├── tsconfig.json
 │       ├── tsconfig.lib.json
 │       └── tsconfig.spec.json
-├── tools
+├── tools/
+├── babel.config.json
 ├── jest.config.js
 ├── jest.preset.js
 ├── nx.json
 ├── package-lock.json
 ├── package.json
-├── tsconfig.base.json
-└── workspace.json
+└── tsconfig.base.json
 ```
 
 Run:
@@ -183,22 +222,22 @@ Run:
 - `npx nx test shared-ui-layout` to test the library
 - `npx nx lint shared-ui-layout` to lint the library
 
-To generate a new comopnent inside `shared-ui-layout` run:
+To generate a new component inside `shared-ui-layout` run:
 
-```bash
-npx nx g @nrwl/react-native:component layout --project=shared-ui-layout --export
+```shell
+npx nx g @nx/react-native:component layout --directory=libs/shared-ui-layout/src/lib/layout --export
 ```
 
 And you will see the following updated for `shared-ui-layout`:
 
 ```treeview
 happynrwl/
-└── libs
-    └── shared-ui-layout
-        └── src
+└── libs/
+    └── shared-ui-layout/
+        └── src/
             ├── index.ts
-            └── lib
-                 └── layout
+            └── lib/
+                 └── layout/
                      ├── layout.tsx
                      └── layout.spec.tsx
 ```
@@ -207,8 +246,7 @@ happynrwl/
 
 You can import the `shared-ui-layout` library in your application as follows.
 
-```typescript jsx
-// apps/mobile/src/app/App.tsx
+```typescript jsx {% fileName="apps/mobile/src/app/App.tsx" %}
 import React from 'react';
 import { SafeAreaView } from 'react-native';
 
@@ -231,38 +269,27 @@ That's it! There is no need to build the library prior to using it. When you upd
 
 For libraries intended to be built and published to a registry (e.g. npm) you can use the `--publishable` and `--importPath` options.
 
-```bash
-npx nx g @nrwl/react-native:lib shared-ui-layout --publishable --importPath=@happynrwl/ui-components
-npx nx g @nrwl/react-native:component layout --project=shared-ui-layout --export
+```shell
+npx nx g @nx/react-native:lib shared-ui-layout --directory=libs/shared-ui-layout --publishable --importPath=@happynrwl/ui-components
+npx nx g @nx/react-native:component layout --directory=libs/shared-ui-layout/src/lib/layout --export
 ```
 
 Run `npx nx build shared-ui-layout` to build the library. It will generate the following:
 
-```treeview
+```text
 dist/libs/shared-ui-layout/
 ├── README.md
 ├── index.d.ts
-├── lib
-│   └── layout
+├── lib/
+│   └── layout/
 │       └── layout.d.ts
-├── package.json
-├── shared-ui-layout.esm.css
-├── shared-ui-layout.esm.js
-├── shared-ui-layout.umd.css
-└── shared-ui-layout.umd.js
+└── package.json
 ```
 
 This dist folder is ready to be published to a registry.
 
 ## Code Sharing
 
-Without Nx, creating a new shared library can take from several hours or even weeks: a new repo needs to be provisioned, CI needs to be set up, etc.. In an Nx Workspace, it only takes minutes.
+Without Nx, creating a new shared library can take from several hours to even weeks: a new repo needs to be provisioned, CI needs to be set up, etc... In an Nx Workspace, it only takes minutes.
 
-You can share React Native components between multiple React Native applications. You can also share business logic code between React Native mobile applications and plain React webapplications. You can even share code between the backend and the frontend. All can be done without any unnecessary ceremony.
-
-## Resources
-
-Here are other resources that you may find useful to learn more about React Native and Nx.
-
-- **Blog post:** [Introducing React Native Support for Nx](https://blog.nrwl.io/introducing-react-native-support-for-nx-48d335e90c89) by Jack Hsu
-- **Blog post:** [Step by Step Guide on Creating a Monorepo for React Native Apps using Nx](https://blog.nrwl.io/step-by-step-guide-on-creating-a-monorepo-for-react-native-apps-using-nx-704753b6c70e) by Eimly Xiong
+You can share React Native components between multiple React Native applications, share business logic code between React Native mobile applications and plain React web applications. You can even share code between the backend and the frontend. All of these can be done without any unnecessary ceremony.

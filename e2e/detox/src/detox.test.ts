@@ -1,52 +1,58 @@
 import {
-  checkFilesExist,
-  isOSX,
-  newProject,
   runCLI,
-  runCLIAsync,
+  cleanupProject,
+  newProject,
   uniq,
-  killPorts,
-} from '@nrwl/e2e/utils';
+  readJson,
+  updateJson,
+} from 'e2e/utils';
 
-describe('Detox', () => {
-  beforeEach(() => newProject());
+describe('@nx/detox', () => {
+  let project: string;
+  let appName: string;
 
-  it('should create files and run lint command', async () => {
-    const appName = uniq('myapp');
+  beforeAll(() => {
+    project = newProject();
+    appName = uniq('app');
     runCLI(
-      `generate @nrwl/react-native:app ${appName} --e2eTestRunner=detox --linter=eslint`
+      `generate @nx/react-native:app ${appName} --e2eTestRunner=detox --install=false --project-name-and-root-format=as-provided --interactive=false`
+    );
+    updateJson(`${appName}-e2e/.detoxrc.json`, (json) => {
+      json.apps['e2e.debug'] = {
+        type: 'ios.app',
+        build: `echo "building ${appName}"`,
+        binaryPath: 'dist',
+      };
+      json.configurations['e2e.sim.debug'] = {
+        device: 'simulator',
+        app: 'e2e.debug',
+      };
+      return json;
+    });
+  });
+
+  afterAll(() => cleanupProject());
+
+  it('nx.json should contain plugin configuration', () => {
+    const nxJson = readJson('nx.json');
+    const detoxPlugin = nxJson.plugins.find(
+      (plugin) => plugin.plugin === '@nx/detox/plugin'
+    );
+    expect(detoxPlugin).toBeDefined();
+    expect(detoxPlugin.options).toBeDefined();
+    expect(detoxPlugin.options.buildTargetName).toEqual('build');
+    expect(detoxPlugin.options.testTargetName).toEqual('test');
+    expect(detoxPlugin.options.startTargetName).toEqual('start');
+  });
+
+  it('should build the app', async () => {
+    const result = runCLI(
+      `build ${appName}-e2e -- --configuration e2e.sim.debug`
     );
 
-    checkFilesExist(`apps/${appName}-e2e/.detoxrc.json`);
-    checkFilesExist(`apps/${appName}-e2e/tsconfig.json`);
-    checkFilesExist(`apps/${appName}-e2e/tsconfig.e2e.json`);
-    checkFilesExist(`apps/${appName}-e2e/test-setup.ts`);
-    checkFilesExist(`apps/${appName}-e2e/src/app.spec.ts`);
-
-    const lintResults = await runCLIAsync(`lint ${appName}-e2e`);
-    expect(lintResults.combinedOutput).toContain('All files pass linting');
-  });
-
-  describe('React Native Detox MACOS-Tests', () => {
-    if (isOSX()) {
-      it('should build and test ios MACOS-Tests', async () => {
-        const appName = uniq('myapp');
-        runCLI(
-          `generate @nrwl/react-native:app ${appName} --e2eTestRunner=detox --linter=eslint`
-        );
-
-        expect(runCLI(`build-ios ${appName}-e2e --prod`)).toContain(
-          'Running target "build-ios" succeeded'
-        );
-
-        expect(
-          runCLI(
-            `test-ios ${appName}-e2e --prod --debugSynchronization=true --loglevel=trace`
-          )
-        ).toContain('Running target "test-ios" succeeded');
-
-        await killPorts(8081); // kill the port for the serve command
-      }, 3000000);
-    }
-  });
+    expect(result).toContain(`building ${appName}`);
+    expect(result).toContain(
+      `Successfully ran target build for project ${appName}`
+    );
+  }, 200_000);
 });

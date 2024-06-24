@@ -1,7 +1,8 @@
 {
-  "name": "@nrwl/react",
+  "name": "@nx/react",
   "version": "0.0.1",
-  "description": "React Plugin for Nx",
+  "private": false,
+  "description": "The React plugin for Nx contains executors and generators for managing React applications and libraries within an Nx workspace. It provides:\n\n\n- Integration with libraries such as Jest, Vitest, Playwright, Cypress, and Storybook.\n\n- Generators for applications, libraries, components, hooks, and more.\n\n- Library build support for publishing packages to npm or other registries.\n\n- Utilities for automatic workspace refactoring.",
   "repository": {
     "type": "git",
     "url": "https://github.com/nrwl/nx.git",
@@ -13,9 +14,10 @@
     "Web",
     "Jest",
     "Cypress",
-    "CLI"
+    "CLI",
+    "Front-end"
   ],
-  "main": "./index.js",
+  "main": "./index",
   "typings": "./index.d.ts",
   "author": "Victor Savkin",
   "license": "MIT",
@@ -23,34 +25,25 @@
     "url": "https://github.com/nrwl/nx/issues"
   },
   "homepage": "https://nx.dev",
-  "schematics": "./generators.json",
+  "executors": "./executors.json",
+  "generators": "./generators.json",
   "ng-update": {
     "requirements": {},
     "migrations": "./migrations.json"
   },
   "dependencies": {
-    "@babel/core": "^7.15.0",
-    "@babel/preset-react": "^7.14.5",
-    "@nrwl/cypress": "*",
-    "@nrwl/devkit": "*",
-    "@nrwl/jest": "*",
-    "@nrwl/js": "*",
-    "@nrwl/linter": "*",
-    "@nrwl/storybook": "*",
-    "@nrwl/web": "*",
-    "@nrwl/workspace": "*",
-    "@pmmmwh/react-refresh-webpack-plugin": "^0.5.1",
-    "@svgr/webpack": "^6.1.2",
-    "chalk": "4.1.0",
-    "eslint-plugin-import": "^2.25.2",
-    "eslint-plugin-jsx-a11y": "^6.5.1",
-    "eslint-plugin-react": "^7.27.0",
-    "eslint-plugin-react-hooks": "^4.2.0",
-    "react-refresh": "^0.10.0",
-    "url-loader": "^4.1.1",
-    "webpack": "^5.58.1",
-    "webpack-merge": "^5.8.0",
-    "@storybook/node-logger": "6.1.20",
-    "semver": "7.3.4"
+    "@phenomnomnominal/tsquery": "~5.0.1",
+    "@svgr/webpack": "^8.0.1",
+    "chalk": "^4.1.0",
+    "file-loader": "^6.2.0",
+    "minimatch": "9.0.3",
+    "tslib": "^2.3.0",
+    "@nx/devkit": "file:../devkit",
+    "@nx/js": "file:../js",
+    "@nx/eslint": "file:../eslint",
+    "@nx/web": "file:../web"
+  },
+  "publishConfig": {
+    "access": "public"
   }
 }

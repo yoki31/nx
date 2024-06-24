@@ -1,26 +1,45 @@
-import { SupportedStyles } from '../../../typings/style';
-import { Linter } from '@nrwl/linter';
+import type { ProjectNameAndRootFormat } from '@nx/devkit/src/generators/project-name-and-root-utils';
+import type { Linter } from '@nx/eslint';
+import type { SupportedStyles } from '../../../typings/style';
 
 export interface Schema {
-  name: string;
-  directory?: string;
-  style: SupportedStyles;
-  skipTsConfig: boolean;
-  skipFormat: boolean;
-  tags?: string;
-  pascalCaseFiles?: boolean;
-  routing?: boolean;
   appProject?: string;
-  unitTestRunner: 'jest' | 'none';
-  linter: Linter;
-  component?: boolean;
-  publishable?: boolean;
   buildable?: boolean;
-  importPath?: string;
-  js?: boolean;
-  globalCss?: boolean;
-  strict?: boolean;
-  setParserOptionsProject?: boolean;
-  standaloneConfig?: boolean;
+  bundler?: 'none' | 'rollup' | 'vite';
   compiler?: 'babel' | 'swc';
+  component?: boolean;
+  directory?: string;
+  projectNameAndRootFormat?: ProjectNameAndRootFormat;
+  globalCss?: boolean;
+  importPath?: string;
+  inSourceTests?: boolean;
+  js?: boolean;
+  linter: Linter;
+  name: string;
+  pascalCaseFiles?: boolean;
+  publishable?: boolean;
+  routing?: boolean;
+  setParserOptionsProject?: boolean;
+  skipFormat?: boolean;
+  skipPackageJson?: boolean;
+  skipTsConfig?: boolean;
+  strict?: boolean;
+  style: SupportedStyles;
+  tags?: string;
+  unitTestRunner?: 'jest' | 'vitest' | 'none';
+  minimal?: boolean;
+  simpleName?: boolean;
+  addPlugin?: boolean;
+}
+
+export interface NormalizedSchema extends Schema {
+  js: boolean;
+  name: string;
+  fileName: string;
+  projectRoot: string;
+  routePath: string;
+  parsedTags: string[];
+  appMain?: string;
+  appSourceRoot?: string;
+  unitTestRunner: 'jest' | 'vitest' | 'none';
 }

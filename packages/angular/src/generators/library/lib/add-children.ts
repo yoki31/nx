@@ -1,44 +1,55 @@
-import { Tree, names, getWorkspaceLayout } from '@nrwl/devkit';
-import { insertImport } from '@nrwl/workspace/src/utilities/ast-utils';
-import * as ts from 'typescript';
-import {
-  addImportToModule,
-  addRoute,
-} from '../../../utils/nx-devkit/ast-utils';
+import { names, Tree } from '@nx/devkit';
+import { insertImport } from '@nx/js';
+import { addImportToModule } from '../../../utils/nx-devkit/ast-utils';
 import { NormalizedSchema } from './normalized-schema';
+import { addRoute } from '../../../utils/nx-devkit/route-utils';
+import { ensureTypescript } from '@nx/js/src/utils/typescript/ensure-typescript';
 
-export function addChildren(host: Tree, options: NormalizedSchema) {
-  if (!host.exists(options.parentModule)) {
-    throw new Error(`Cannot find '${options.parentModule}'`);
+let tsModule: typeof import('typescript');
+
+export function addChildren(
+  tree: Tree,
+  options: NormalizedSchema['libraryOptions']
+) {
+  if (!tree.exists(options.parent)) {
+    throw new Error(`Cannot find '${options.parent}'`);
+  }
+  if (!tsModule) {
+    tsModule = ensureTypescript();
   }
 
-  const moduleSource = host.read(options.parentModule, 'utf-8');
-  const constName = `${names(options.fileName).propertyName}Routes`;
+  const routeFileSource = tree.read(options.parent, 'utf-8');
+  const constName = options.standalone
+    ? `${names(options.name).propertyName}Routes`
+    : `${names(options.fileName).propertyName}Routes`;
   const importPath = options.importPath;
-  let sourceFile = ts.createSourceFile(
-    options.parentModule,
-    moduleSource,
-    ts.ScriptTarget.Latest,
+  let sourceFile = tsModule.createSourceFile(
+    options.parent,
+    routeFileSource,
+    tsModule.ScriptTarget.Latest,
     true
   );
 
-  sourceFile = addImportToModule(
-    host,
-    sourceFile,
-    options.parentModule,
-    options.moduleName
-  );
-  sourceFile = addRoute(
-    host,
-    options.parentModule,
-    sourceFile,
-    `{ path: '${names(options.fileName).fileName}', children: ${constName} }`
-  );
+  if (!options.standalone) {
+    sourceFile = addImportToModule(
+      tree,
+      sourceFile,
+      options.parent,
+      options.moduleName
+    );
+  }
+
   sourceFile = insertImport(
-    host,
+    tree,
     sourceFile,
-    options.parentModule,
-    `${options.moduleName}, ${constName}`,
+    options.parent,
+    options.standalone ? constName : `${options.moduleName}, ${constName}`,
     importPath
   );
+
+  const route = `{ path: '${
+    names(options.fileName).fileName
+  }', children: ${constName} }`;
+
+  addRoute(tree, options.parent, route, false, constName, importPath);
 }

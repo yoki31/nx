@@ -1,8 +1,14 @@
+import { NxReactWebpackPlugin as _NxReactWebpackPlugin } from './plugins/nx-react-webpack-plugin/nx-react-webpack-plugin';
+
+// TODO(v20): Remove this in favor of deep imports in order to load configs faster (150-200ms faster).
+/** @deprecated Use '@nx/react/webpack-plugin' instead. */
+export const NxReactWebpackPlugin = _NxReactWebpackPlugin;
+
 export {
   extraEslintDependencies,
-  createReactEslintJson,
+  extendReactEslintJson,
 } from './src/utils/lint';
-export { CSS_IN_JS_DEPENDENCIES } from './src/utils/styled';
+export { cssInJsDependenciesBabel } from './src/utils/styled';
 export { assertValidStyle } from './src/utils/assertion';
 export { reactDomVersion, reactVersion } from './src/utils/versions';
 export { applicationGenerator } from './src/generators/application/application';
@@ -15,5 +21,10 @@ export { reactInitGenerator } from './src/generators/init/init';
 export { reduxGenerator } from './src/generators/redux/redux';
 export { storiesGenerator } from './src/generators/stories/stories';
 export { storybookConfigurationGenerator } from './src/generators/storybook-configuration/configuration';
-export { storybookMigration5to6Generator } from './src/generators/storybook-migrate-defaults-5-to-6/migrate-defaults-5-to-6';
+export { hostGenerator } from './src/generators/host/host';
+export { remoteGenerator } from './src/generators/remote/remote';
+export { cypressComponentConfigGenerator } from './src/generators/cypress-component-configuration/cypress-component-configuration';
+export { componentTestGenerator } from './src/generators/component-test/component-test';
+export { setupTailwindGenerator } from './src/generators/setup-tailwind/setup-tailwind';
 export type { SupportedStyles } from './typings/style';
+export * from './plugins/with-react';

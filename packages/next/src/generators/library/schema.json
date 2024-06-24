@@ -1,19 +1,10 @@
 {
-  "$schema": "http://json-schema.org/schema",
+  "$schema": "https://json-schema.org/schema",
   "cli": "nx",
   "$id": "NxReactLibrary",
   "title": "Create a React Library for Nx",
+  "description": "Create a React Library for an Nx workspace.",
   "type": "object",
-  "examples": [
-    {
-      "command": "g lib mylib --directory=myapp",
-      "description": "Generate libs/myapp/mylib"
-    },
-    {
-      "command": "g lib mylib --appProject=myapp",
-      "description": "Generate a library with routes and add them to myapp"
-    }
-  ],
   "properties": {
     "name": {
       "type": "string",
@@ -23,12 +14,19 @@
         "index": 0
       },
       "x-prompt": "What name would you like to use for the library?",
-      "pattern": "^[a-zA-Z].*$"
+      "pattern": "(?:^@[a-zA-Z0-9-*~][a-zA-Z0-9-*._~]*\\/[a-zA-Z0-9-~][a-zA-Z0-9-._~]*|^[a-zA-Z][^:]*)$",
+      "x-priority": "important"
     },
     "directory": {
       "type": "string",
       "description": "A directory where the lib is placed.",
-      "alias": "dir"
+      "alias": "dir",
+      "x-priority": "important"
+    },
+    "projectNameAndRootFormat": {
+      "description": "Whether to generate the project name and root directory as provided (`as-provided`) or generate them composing their values and taking the configured layout into account (`derived`).",
+      "type": "string",
+      "enum": ["as-provided", "derived"]
     },
     "style": {
       "description": "The file extension to be used for style files.",
@@ -42,15 +40,11 @@
           { "value": "css", "label": "CSS" },
           {
             "value": "scss",
-            "label": "SASS(.scss)       [ http://sass-lang.com          ]"
-          },
-          {
-            "value": "styl",
-            "label": "Stylus(.styl)     [ http://stylus-lang.com        ]"
+            "label": "SASS(.scss)       [ https://sass-lang.com          ]"
           },
           {
             "value": "less",
-            "label": "LESS              [ http://lesscss.org            ]"
+            "label": "LESS              [ https://lesscss.org            ]"
           },
           {
             "value": "styled-components",
@@ -74,14 +68,13 @@
     "linter": {
       "description": "The tool to use for running lint checks.",
       "type": "string",
-      "enum": ["eslint", "tslint"],
+      "enum": ["eslint"],
       "default": "eslint"
     },
     "unitTestRunner": {
       "type": "string",
-      "enum": ["jest", "none"],
-      "description": "Test runner to use for unit tests.",
-      "default": "jest"
+      "enum": ["jest", "vitest", "none"],
+      "description": "Test runner to use for unit tests."
     },
     "tags": {
       "type": "string",
@@ -100,7 +93,7 @@
     },
     "pascalCaseFiles": {
       "type": "boolean",
-      "description": "Use pascal case component file name (e.g. App.tsx).",
+      "description": "Use pascal case component file name (e.g. `App.tsx`).",
       "alias": "P",
       "default": false
     },
@@ -124,7 +117,7 @@
     },
     "importPath": {
       "type": "string",
-      "description": "The library name used to import it, like @myorg/my-awesome-lib"
+      "description": "The library name used to import it, like `@myorg/my-awesome-lib`."
     },
     "component": {
       "type": "boolean",
@@ -138,7 +131,7 @@
     },
     "globalCss": {
       "type": "boolean",
-      "description": "When true, the stylesheet is generated using global CSS instead of CSS modules (e.g. file is '*.css' rather than '*.module.css').",
+      "description": "When true, the stylesheet is generated using global CSS instead of CSS modules (e.g. file is `*.css` rather than `*.module.css`).",
       "default": false
     },
     "strict": {
@@ -148,13 +141,16 @@
     },
     "setParserOptionsProject": {
       "type": "boolean",
-      "description": "Whether or not to configure the ESLint \"parserOptions.project\" option. We do not do this by default for lint performance reasons.",
+      "description": "Whether or not to configure the ESLint `parserOptions.project` option. We do not do this by default for lint performance reasons.",
       "default": false
     },
-    "standaloneConfig": {
-      "description": "Split the project configuration into <projectRoot>/project.json rather than including it inside workspace.json",
-      "type": "boolean"
+    "skipPackageJson": {
+      "type": "boolean",
+      "default": false,
+      "description": "Do not add dependencies to `package.json`.",
+      "x-priority": "internal"
     }
   },
-  "required": ["name"]
+  "required": ["name"],
+  "examplesFile": "../../../docs/library-examples.md"
 }

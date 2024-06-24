@@ -4,4 +4,6 @@ export interface AddLintingGeneratorSchema {
   prefix: string;
   setParserOptionsProject?: boolean;
   skipFormat?: boolean;
+  skipPackageJson?: boolean;
+  unitTestRunner?: string;
 }

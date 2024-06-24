@@ -1,599 +1,204 @@
 {
-  "schematics": {
-    "update-8.3.0": {
-      "version": "8.3.0-beta.1",
-      "description": "Update React libraries",
-      "factory": "./src/migrations/update-8-3-0/update-8-3-0"
-    },
-    "update-workspace-8.5.0": {
-      "version": "8.5.0-beta.1",
-      "description": "Update React workspace",
-      "factory": "./src/migrations/update-8-5-0/update-workspace-8-5-0"
-    },
-    "update-8-7-0": {
-      "version": "8.7.0-beta.1",
-      "description": "Update React libraries",
-      "factory": "./src/migrations/update-8-7-0/update-8-7-0"
-    },
-    "update-8.9.0": {
-      "version": "8.9.0-beta.1",
-      "description": "Update React libraries",
-      "factory": "./src/migrations/update-8-9-0/update-8-9-0"
-    },
-    "update-8.10.0": {
-      "version": "8.10.0-beta.1",
-      "description": "Update React libraries",
-      "factory": "./src/migrations/update-8-10-0/update-8-10-0"
-    },
-    "fix-react-tsconfig-8.10.1": {
-      "version": "8.10.1-beta.1",
-      "description": "Fix SVG migration",
-      "factory": "./src/migrations/update-8-10-1/fix-react-tsconfig-8-10-1"
-    },
-    "update-8.12.0": {
-      "version": "8.12.0-beta.1",
-      "description": "Update styled-components",
-      "factory": "./src/migrations/update-8-12-0/update-8-12-0"
-    },
-    "fix-react-files-8.12.0": {
-      "version": "8.12.0-beta.1",
-      "description": "Ensure React correct webpack config and babel preset",
-      "factory": "./src/migrations/update-8-12-0/fix-react-files-8-12-0"
-    },
-    "update-9.4.0": {
-      "version": "9.4.0-beta.1",
-      "description": "Update libraries",
-      "factory": "./src/migrations/update-9-4-0/update-9-4-0"
-    },
-    "babelrc-9.4.0": {
-      "version": "9.4.0-beta.1",
-      "description": "Migrate to new babel setup for greater flexibility",
-      "factory": "./src/migrations/update-9-4-0/babelrc-9-4-0"
-    },
-    "update-9.5.0": {
-      "version": "9.5.0-beta.1",
-      "description": "Update libraries",
-      "factory": "./src/migrations/update-9-5-0/update-9-5-0"
-    },
-    "update-10.4.0": {
-      "version": "10.4.0-beta.1",
-      "description": "Update libraries",
-      "factory": "./src/migrations/update-10-4-0/update-10-4-0"
-    },
-    "rename-emotion-packages-11.0.0": {
-      "version": "11.0.0-beta.0",
-      "description": "Rename emotion packages to match new 11.0.0 package names",
-      "factory": "./src/migrations/update-11-0-0/rename-emotion-packages-11-0-0"
-    },
-    "update-11.0.0": {
-      "version": "11.0.0-beta.0",
-      "description": "Update libraries",
-      "factory": "./src/migrations/update-11-0-0/update-11-0-0"
-    },
-    "move-react-redux-types-package-11.2.0": {
-      "version": "11.2.0-beta.0",
-      "description": "Move react redux typings from dependencies to devDependencies in package.json",
-      "factory": "./src/migrations/update-11-2-0/move-react-redux-types-package-11-2-0"
-    },
-    "use-react-jsx-in-tsconfig-12.0.0": {
+  "generators": {
+    "update-16-0-0-add-nx-packages": {
       "cli": "nx",
-      "version": "12.0.0-beta.0",
-      "description": "Migrate tsconfig.json to allow new jsx transform to be used. Removes the need for `import React from 'react'`",
-      "factory": "./src/migrations/update-12-0-0/use-react-jsx-in-tsconfig"
+      "version": "16.0.0-beta.1",
+      "description": "Replace @nrwl/react with @nx/react",
+      "implementation": "./src/migrations/update-16-0-0-add-nx-packages/update-16-0-0-add-nx-packages"
     },
-    "update-emotion-setup-12.0.0": {
+    "update-16-2-0-remove-package": {
       "cli": "nx",
-      "version": "12.0.0-beta.0",
-      "description": "Update workspace to use `@emotion/babel-plugin` instead of `@emotion/babel-preset-css-prop` to support new jsx transform",
-      "factory": "./src/migrations/update-12-0-0/update-emotion-setup"
+      "version": "16.2.0-beta.0",
+      "description": "Remove react-test-renderer from package.json",
+      "implementation": "./src/migrations/update-16-2-0-remove-package/update-16-2-0-remove-package"
     },
-    "remove-react-redux-types-package-12.0.0": {
+    "remove-types-react-router-dom": {
       "cli": "nx",
-      "version": "12.0.0-beta.0",
-      "description": "Remove @types/react-redux from package.json since react-redux installs the package automatically now",
-      "factory": "./src/migrations/update-12-0-0/remove-react-redux-types-package"
+      "version": "16.3.0-beta.2",
+      "description": "Remove @types/react-router-dom from package.json",
+      "implementation": "./src/migrations/update-16-3-0/remove-types-react-router-dom-package"
     },
-    "update-emotion-setup-13.0.0": {
+    "add-babel-core": {
       "cli": "nx",
-      "version": "13.0.0-beta.0",
-      "description": "Update tsconfig.json to use `jsxImportSource` to support css prop",
-      "factory": "./src/migrations/update-13-0-0/update-emotion-setup"
+      "version": "16.7.0-beta.2",
+      "description": "Add @babel/core to package.json if @babel/preset-react is present",
+      "implementation": "./src/migrations/update-16-7-0/add-babel-core"
     },
-    "migrate-storybook-to-webpack-5-13.0.0": {
+    "update-16-7-0-add-typings": {
       "cli": "nx",
-      "version": "13.0.0-beta.0",
-      "description": "Migrate Storybook to use webpack 5",
-      "factory": "./src/migrations/update-13-0-0/migrate-storybook-to-webpack-5"
+      "version": "16.7.0-beta.2",
+      "description": "Add @nx/react types to tsconfig types array",
+      "implementation": "./src/migrations/update-16-7-0-add-typings/update-16-7-0-add-typings"
+    },
+    "add-module-federation-env-var-to-target-defaults": {
+      "cli": "nx",
+      "version": "18.0.0-beta.0",
+      "description": "Add NX_MF_DEV_SERVER_STATIC_REMOTES to inputs for task hashing when '@nx/webpack:webpack' is used for Module Federation.",
+      "factory": "./src/migrations/update-18-0-0/add-mf-env-var-to-target-defaults"
+    },
+    "fix-target-defaults-for-webpack": {
+      "cli": "nx",
+      "version": "18.1.1-beta.0",
+      "description": "Ensure targetDefaults inputs for task hashing when '@nx/webpack:webpack' is used are correct for Module Federation.",
+      "factory": "./src/migrations/update-18-1-1/fix-target-defaults-inputs"
     }
   },
   "packageJsonUpdates": {
-    "8.7.0": {
-      "version": "8.7.0-beta.4",
+    "16.3.0": {
+      "version": "16.3.0-beta.2",
       "packages": {
-        "react": {
-          "version": "16.10.2",
-          "alwaysAddToPackageJson": false
-        },
-        "react-dom": {
-          "version": "16.10.2",
-          "alwaysAddToPackageJson": false
-        },
         "react-router-dom": {
-          "version": "5.1.2",
+          "version": "6.11.2",
           "alwaysAddToPackageJson": false
         },
-        "@testing-library/react": {
-          "version": "9.3.0",
-          "alwaysAddToPackageJson": false
-        },
-        "redux-starter-kit": {
-          "version": "0.8.0",
-          "alwaysAddToPackageJson": false
-        },
-        "react-redux": {
-          "version": "7.1.1",
-          "alwaysAddToPackageJson": false
-        },
-        "@types/react-redux": {
-          "version": "7.1.4",
+        "@svgr/rollup": {
+          "version": "^8.0.1",
           "alwaysAddToPackageJson": false
         }
       }
     },
-    "8.9.0": {
-      "version": "8.9.0-beta.1",
+    "16.4.0-beta.4": {
+      "version": "16.4.0-beta.4",
       "packages": {
-        "react": {
-          "version": "16.12.0",
+        "stylus": {
+          "version": "^0.59.0",
           "alwaysAddToPackageJson": false
-        },
-        "react-dom": {
-          "version": "16.12.0",
-          "alwaysAddToPackageJson": false
-        },
+        }
+      }
+    },
+    "16.4.0-beta.7": {
+      "version": "16.4.0-beta.7",
+      "packages": {
         "@types/react": {
-          "version": "16.9.13",
+          "version": "18.2.12",
           "alwaysAddToPackageJson": false
         },
         "@types/react-dom": {
-          "version": "16.9.4",
-          "alwaysAddToPackageJson": false
-        },
-        "@types/react-router-dom": {
-          "version": "5.1.2",
-          "alwaysAddToPackageJson": false
-        },
-        "@testing-library/react": {
-          "version": "9.3.2",
-          "alwaysAddToPackageJson": false
-        },
-        "react-redux": {
-          "version": "7.1.3",
-          "alwaysAddToPackageJson": false
-        },
-        "@types/react-redux": {
-          "version": "7.1.5",
-          "alwaysAddToPackageJson": false
-        },
-        "eslint-plugin-import": {
-          "version": "2.18.2",
-          "alwaysAddToPackageJson": false
-        },
-        "eslint-plugin-jsx-a11y": {
-          "version": "6.2.3",
-          "alwaysAddToPackageJson": false
-        },
-        "eslint-plugin-react": {
-          "version": "7.16.0",
-          "alwaysAddToPackageJson": false
-        },
-        "eslint-plugin-react-hooks": {
-          "version": "2.3.0",
-          "alwaysAddToPackageJson": false
-        }
-      }
-    },
-    "8.10.0": {
-      "version": "8.10.0-beta.1",
-      "packages": {
-        "@types/react": {
-          "version": "16.9.17",
-          "alwaysAddToPackageJson": false
-        },
-        "@types/react-router-dom": {
-          "version": "5.1.3",
-          "alwaysAddToPackageJson": false
-        },
-        "@testing-library/react": {
-          "version": "9.4.0",
-          "alwaysAddToPackageJson": false
-        },
-        "@types/styled-components": {
-          "version": "4.4.1",
-          "alwaysAddToPackageJson": false
-        },
-        "@emotion/core": {
-          "version": "10.0.27",
-          "alwaysAddToPackageJson": false
-        },
-        "@emotion/styled": {
-          "version": "10.0.27",
-          "alwaysAddToPackageJson": false
-        },
-        "@reduxjs/toolkit": {
-          "version": "1.1.0",
-          "alwaysAddToPackageJson": false
-        },
-        "eslint-plugin-import": {
-          "version": "2.19.1",
-          "alwaysAddToPackageJson": false
-        },
-        "eslint-plugin-react": {
-          "version": "7.17.0",
-          "alwaysAddToPackageJson": false
-        }
-      }
-    },
-    "8.12.0": {
-      "version": "8.12.0-beta.1",
-      "packages": {
-        "styled-components": {
-          "version": "5.0.0",
-          "alwaysAddToPackageJson": false
-        },
-        "@types/styled-components": {
-          "version": "4.4.2",
-          "alwaysAddToPackageJson": false
-        }
-      }
-    },
-    "9.4.0": {
-      "version": "9.4.0-beta.1",
-      "packages": {
-        "react": {
-          "version": "16.13.1",
-          "alwaysAddToPackageJson": false
-        },
-        "react-dom": {
-          "version": "16.13.1",
-          "alwaysAddToPackageJson": false
-        },
-        "react-is": {
-          "version": "16.13.1",
-          "alwaysAddToPackageJson": false
-        },
-        "@types/react": {
-          "version": "16.9.35",
-          "alwaysAddToPackageJson": false
-        },
-        "@types/react-dom": {
-          "version": "16.9.8",
+          "version": "18.2.5",
           "alwaysAddToPackageJson": false
         },
         "@types/react-is": {
-          "version": "16.7.1",
-          "alwaysAddToPackageJson": false
-        },
-        "styled-components": {
-          "version": "5.1.0",
-          "alwaysAddToPackageJson": false
-        },
-        "@types/styled-components": {
-          "version": "5.1.0",
-          "alwaysAddToPackageJson": false
-        },
-        "react-router-dom": {
-          "version": "5.2.0",
-          "alwaysAddToPackageJson": false
-        },
-        "@types/react-router-dom": {
-          "version": "5.1.5",
-          "alwaysAddToPackageJson": false
-        },
-        "@testing-library/react": {
-          "version": "10.0.4",
-          "alwaysAddToPackageJson": false
-        },
-        "@reduxjs/toolkit": {
-          "version": "1.3.6",
-          "alwaysAddToPackageJson": false
-        },
-        "react-redux": {
-          "version": "7.2.0",
-          "alwaysAddToPackageJson": false
-        },
-        "@types/react-redux": {
-          "version": "7.1.9",
-          "alwaysAddToPackageJson": false
-        },
-        "eslint-plugin-import": {
-          "version": "2.20.2",
-          "alwaysAddToPackageJson": false
-        },
-        "eslint-plugin-react": {
-          "version": "7.20.0",
-          "alwaysAddToPackageJson": false
-        },
-        "eslint-plugin-react-hooks": {
-          "version": "4.0.2",
+          "version": "18.2.0",
           "alwaysAddToPackageJson": false
         }
       }
     },
-    "9.5.0": {
-      "version": "9.5.0-beta.1",
+    "16.4.0-beta.8": {
+      "version": "16.4.0-beta.8",
       "packages": {
-        "@types/react": {
-          "version": "16.9.38",
-          "alwaysAddToPackageJson": false
-        },
-        "styled-components": {
-          "version": "5.1.1",
-          "alwaysAddToPackageJson": false
-        },
-        "@emotion/core": {
-          "version": "10.0.28",
-          "alwaysAddToPackageJson": false
-        },
-        "@testing-library/react": {
-          "version": "10.4.1",
-          "alwaysAddToPackageJson": false
-        },
-        "@reduxjs/toolkit": {
-          "version": "1.4.0",
-          "alwaysAddToPackageJson": false
-        },
-        "eslint-plugin-import": {
-          "version": "2.21.2",
-          "alwaysAddToPackageJson": false
-        },
-        "eslint-plugin-a11y": {
-          "version": "6.3.1",
-          "alwaysAddToPackageJson": false
-        },
-        "eslint-plugin-react-hooks": {
-          "version": "4.0.4",
-          "alwaysAddToPackageJson": false
-        }
-      }
-    },
-    "10.4.0": {
-      "version": "9.5.0-beta.1",
-      "packages": {
-        "react": {
-          "version": "17.0.1",
-          "alwaysAddToPackageJson": false
-        },
-        "react-dom": {
-          "version": "17.0.1",
-          "alwaysAddToPackageJson": false
-        },
-        "@types/react": {
-          "version": "16.9.56",
-          "alwaysAddToPackageJson": false
-        },
-        "@types/react-dom": {
-          "version": "16.9.9",
-          "alwaysAddToPackageJson": false
-        },
-        "styled-components": {
-          "version": "5.2.1",
-          "alwaysAddToPackageJson": false
-        },
-        "@types/styled-components": {
-          "version": "5.1.4",
-          "alwaysAddToPackageJson": false
-        },
-        "react-is": {
-          "version": "17.0.1",
-          "alwaysAddToPackageJson": false
-        },
-        "styled-jsx": {
-          "version": "3.3.1",
-          "alwaysAddToPackageJson": false
-        },
-        "@types/react-router-dom": {
-          "version": "5.1.6",
-          "alwaysAddToPackageJson": false
-        },
-        "@testing-library/react": {
-          "version": "11.1.2",
-          "alwaysAddToPackageJson": false
-        },
-        "react-redux": {
-          "version": "7.2.2",
-          "alwaysAddToPackageJson": false
-        },
-        "@types/react-redux": {
-          "version": "7.1.11",
-          "alwaysAddToPackageJson": false
-        },
-        "eslint-plugin-import": {
-          "version": "2.22.1",
-          "alwaysAddToPackageJson": false
-        },
-        "eslint-plugin-a11y": {
-          "version": "6.4.1",
-          "alwaysAddToPackageJson": false
-        },
-        "eslint-plugin-react": {
-          "version": "7.21.5",
-          "alwaysAddToPackageJson": false
-        },
-        "eslint-plugin-react-hooks": {
-          "version": "4.2.0",
-          "alwaysAddToPackageJson": false
-        }
-      }
-    },
-    "11.0.0": {
-      "version": "11.0.0-beta.0",
-      "packages": {
-        "@emotion/react": {
-          "version": "11.0.0",
-          "alwaysAddToPackageJson": false
-        },
         "@emotion/styled": {
-          "version": "11.0.0",
-          "alwaysAddToPackageJson": false
-        },
-        "@emotion/babel-preset-css-prop": {
-          "version": "11.0.0",
-          "alwaysAddToPackageJson": false
-        },
-        "@emotion/server": {
-          "version": "11.0.0",
-          "alwaysAddToPackageJson": false
-        }
-      }
-    },
-    "12.0.0": {
-      "version": "12.0.0-beta.0",
-      "packages": {
-        "react": {
-          "version": "17.0.2",
-          "alwaysAddToPackageJson": false
-        },
-        "react-dom": {
-          "version": "17.0.2",
-          "alwaysAddToPackageJson": false
-        },
-        "@types/react": {
-          "version": "17.0.3",
-          "alwaysAddToPackageJson": false
-        },
-        "@types/react-dom": {
-          "version": "17.0.3",
-          "alwaysAddToPackageJson": false
-        },
-        "@types/styled-components": {
-          "version": "5.1.9",
-          "alwaysAddToPackageJson": false
-        },
-        "react-is": {
-          "version": "17.0.2",
-          "alwaysAddToPackageJson": false
-        },
-        "@types/react-is": {
-          "version": "17.0.0",
-          "alwaysAddToPackageJson": false
-        },
-        "@emotion/styled": {
-          "version": "11.1.5",
+          "version": "11.11.0",
           "alwaysAddToPackageJson": false
         },
         "@emotion/react": {
-          "version": "11.1.5",
-          "alwaysAddToPackageJson": false
-        },
-        "styled-jsx": {
-          "version": "3.4.4",
-          "alwaysAddToPackageJson": false
-        },
-        "@types/react-router-dom": {
-          "version": "5.1.7",
-          "alwaysAddToPackageJson": false
-        },
-        "@testing-library/react": {
-          "version": "11.2.5",
-          "alwaysAddToPackageJson": false
-        },
-        "@reduxjs/toolkit": {
-          "version": "1.6.1",
-          "alwaysAddToPackageJson": false
-        },
-        "react-redux": {
-          "version": "7.2.3",
-          "alwaysAddToPackageJson": false
-        },
-        "eslint-plugin-react": {
-          "version": "7.23.1",
-          "alwaysAddToPackageJson": false
-        }
-      }
-    },
-    "12.10.0": {
-      "version": "12.10.0-beta.2",
-      "packages": {
-        "@testing-library/react": {
-          "version": "11.2.6",
-          "alwaysAddToPackageJson": false
-        }
-      }
-    },
-    "13.0.0": {
-      "version": "13.0.0-beta.2",
-      "packages": {
-        "@types/react": {
-          "version": "17.0.30",
-          "alwaysAddToPackageJson": false
-        },
-        "@types/react-dom": {
-          "version": "17.0.9",
-          "alwaysAddToPackageJson": false
-        },
-        "@types/react-is": {
-          "version": "17.0.2",
-          "alwaysAddToPackageJson": false
-        },
-        "styled-components": {
-          "version": "5.3.3",
-          "alwaysAddToPackageJson": false
-        },
-        "@types/styled-components": {
-          "version": "5.1.15",
-          "alwaysAddToPackageJson": false
-        },
-        "@emotion/styled": {
-          "version": "11.3.0",
-          "alwaysAddToPackageJson": false
-        },
-        "@emotion/react": {
-          "version": "11.5.0",
+          "version": "11.11.1",
           "alwaysAddToPackageJson": false
         },
         "@emotion/babel-plugin": {
-          "version": "11.3.0",
+          "version": "11.11.0",
+          "alwaysAddToPackageJson": false
+        }
+      }
+    },
+    "16.4.0-beta.11": {
+      "version": "16.4.0-beta.11",
+      "packages": {
+        "@types/react": {
+          "version": "18.2.13",
           "alwaysAddToPackageJson": false
         },
-        "styled-jsx": {
-          "version": "4.0.1",
+        "@types/react-dom": {
+          "version": "18.2.6",
           "alwaysAddToPackageJson": false
         },
-        "@types/styled-jsx": {
-          "version": "3.4.4",
+        "@types/react-is": {
+          "version": "18.2.1",
+          "alwaysAddToPackageJson": false
+        }
+      }
+    },
+    "16.5.0-beta.4": {
+      "version": "16.5.0-beta.4",
+      "packages": {
+        "@types/react": {
+          "version": "18.2.14",
+          "alwaysAddToPackageJson": false
+        }
+      }
+    },
+    "17.0.0-beta.0": {
+      "version": "17.0.0-beta.0",
+      "packages": {
+        "@types/react": {
+          "version": "18.2.24",
           "alwaysAddToPackageJson": false
         },
-        "react-router-dom": {
-          "version": "5.3.0",
+        "@types/react-dom": {
+          "version": "18.2.9",
           "alwaysAddToPackageJson": false
         },
-        "@types/react-router-dom": {
-          "version": "5.3.1",
+        "@types/react-is": {
+          "version": "18.2.2",
+          "alwaysAddToPackageJson": false
+        }
+      }
+    },
+    "17.3.0": {
+      "version": "17.3.0-beta.3",
+      "packages": {
+        "@types/node": {
+          "version": "18.16.9",
+          "alwaysAddToPackageJson": false
+        }
+      }
+    },
+    "19.0.0": {
+      "version": "19.0.0-beta.12",
+      "packages": {
+        "react": {
+          "version": "18.3.1",
+          "alwaysAddToPackageJson": false
+        },
+        "react-dom": {
+          "version": "18.3.1",
+          "alwaysAddToPackageJson": false
+        },
+        "react-is": {
+          "version": "18.3.1",
+          "alwaysAddToPackageJson": false
+        },
+        "@types/react": {
+          "version": "18.3.1",
+          "alwaysAddToPackageJson": false
+        },
+        "@types/react-dom": {
+          "version": "18.3.0",
+          "alwaysAddToPackageJson": false
+        },
+        "@types/react-is": {
+          "version": "18.3.0",
           "alwaysAddToPackageJson": false
         },
         "@testing-library/react": {
-          "version": "12.1.2",
+          "version": "15.0.6",
           "alwaysAddToPackageJson": false
-        },
-        "@testing-library/react-hooks": {
-          "version": "7.0.2",
+        }
+      }
+    },
+    "19.0.3": {
+      "version": "19.0.3-beta.0",
+      "packages": {
+        "tailwindcss": {
+          "version": "3.4.3",
           "alwaysAddToPackageJson": false
-        },
-        "@reduxjs/toolkit": {
-          "version": "1.6.2",
-          "alwaysAddToPackageJson": false
-        },
-        "react-redux": {
-          "version": "7.2.5",
-          "alwaysAddToPackageJson": false
-        },
-        "eslint-plugin-import": {
-          "version": "2.25.2",
-          "alwaysAddToPackageJson": false
-        },
-        "eslint-plugin-react": {
-          "version": "7.26.1",
+        }
+      }
+    },
+    "19.2.0": {
+      "version": "19.2.0-beta.8",
+      "packages": {
+        "postcss": {
+          "version": "8.4.38",
           "alwaysAddToPackageJson": false
         }
       }

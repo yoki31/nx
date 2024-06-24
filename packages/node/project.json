@@ -1,22 +1,12 @@
 {
-  "root": "packages/node",
+  "name": "node",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
   "sourceRoot": "packages/node",
   "projectType": "library",
   "targets": {
-    "test": {
-      "executor": "@nrwl/jest:jest",
-      "options": {
-        "jestConfig": "packages/node/jest.config.js",
-        "passWithNoTests": true
-      },
-      "outputs": ["coverage/packages/node"]
-    },
     "build-base": {
-      "executor": "@nrwl/js:tsc",
+      "executor": "@nx/js:tsc",
       "options": {
-        "outputPath": "build/packages/node",
-        "tsConfig": "packages/node/tsconfig.lib.json",
-        "main": "packages/node/index.ts",
         "assets": [
           {
             "input": "packages/node",
@@ -31,7 +21,7 @@
           {
             "input": "packages/node",
             "glob": "**/*.json",
-            "ignore": ["**/tsconfig*.json", "project.json"],
+            "ignore": ["**/tsconfig*.json", "project.json", ".eslintrc.json"],
             "output": "/"
           },
           {
@@ -45,32 +35,23 @@
             "glob": "**/*.d.ts",
             "output": "/"
           },
-          "LICENSE"
+          {
+            "input": "",
+            "glob": "LICENSE",
+            "output": "/"
+          }
         ]
-      },
-      "outputs": ["{options.outputPath}"]
+      }
     },
     "build": {
-      "executor": "@nrwl/workspace:run-commands",
-      "outputs": ["build/packages/node"],
+      "executor": "nx:run-commands",
+      "outputs": ["{workspaceRoot}/build/packages/node"],
       "options": {
         "command": "node ./scripts/copy-readme.js node"
       }
     },
-    "lint": {
-      "executor": "@nrwl/linter:eslint",
-      "options": {
-        "lintFilePatterns": [
-          "packages/node/**/*.ts",
-          "packages/node/**/*.spec.ts",
-          "packages/node/**/*_spec.ts",
-          "packages/node/**/*.spec.tsx",
-          "packages/node/**/*.spec.js",
-          "packages/node/**/*.spec.jsx",
-          "packages/node/**/*.d.ts"
-        ]
-      },
-      "outputs": ["{options.outputFile}"]
+    "add-extra-dependencies": {
+      "command": "node ./scripts/add-dependency-to-build.js node @nrwl/node"
     }
   }
 }

@@ -1,6 +1,8 @@
-import React, { useEffect, useState } from 'react';
-import SyntaxHighlighter from 'react-syntax-highlighter';
+import { useEffect, useState } from 'react';
+// @ts-ignore
 import { CopyToClipboard } from 'react-copy-to-clipboard';
+// @ts-ignore
+import SyntaxHighlighter from 'react-syntax-highlighter';
 
 /* eslint-disable-next-line */
 export interface InlineCommandProps {
@@ -13,7 +15,7 @@ export function InlineCommand({
   language,
   command,
   callback,
-}: InlineCommandProps) {
+}: InlineCommandProps): JSX.Element {
   const [copied, setCopied] = useState(false);
   useEffect(() => {
     let t: NodeJS.Timeout;
@@ -37,10 +39,13 @@ export function InlineCommand({
       >
         <button
           type="button"
-          className="sm:max-w-full w-full text-sm flex-none bg-white text-gray-400 hover:text-gray-800 font-input-mono leading-6 py-1 sm:px-3 border border-gray-300 rounded-md flex items-center justify-center space-x-2 sm:space-x-4 focus:ring-2 focus:ring-offset-2 focus:ring-offset-white focus:ring-gray-300 focus:outline-none transition-colors duration-180"
+          className="font-input-mono duration-180 flex w-full flex-none items-center justify-center space-x-2 rounded-md border border-slate-300 bg-white py-1 text-sm leading-6 text-slate-400 transition-colors hover:text-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-300 focus:ring-offset-2 focus:ring-offset-white sm:max-w-full sm:space-x-4 sm:px-3"
         >
-          <span className="overflow-auto flex items-center text-gray-800">
-            <span className="hidden sm:inline text-gray-500" aria-hidden="true">
+          <span className="flex items-center overflow-auto text-slate-800">
+            <span
+              className="hidden text-slate-500 sm:inline"
+              aria-hidden="true"
+            >
               $
             </span>
             <SyntaxHighlighter
@@ -58,5 +63,3 @@ export function InlineCommand({
     </div>
   );
 }
-
-export default InlineCommand;

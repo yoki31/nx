@@ -1,29 +1,36 @@
-import { ExecutorContext } from '@nrwl/devkit';
-import {
-  assetGlobsToFiles,
-  copyAssetFiles,
-  FileInputOutput,
-} from '@nrwl/workspace/src/utilities/assets';
-import { join, relative, resolve } from 'path';
-import { eachValueFrom } from 'rxjs-for-await';
-import { map } from 'rxjs/operators';
+import { ExecutorContext, readJsonFile } from '@nx/devkit';
+import { assetGlobsToFiles, FileInputOutput } from '../../utils/assets/assets';
+import { removeSync } from 'fs-extra';
+import { sync as globSync } from 'fast-glob';
+import { dirname, join, relative, resolve, normalize } from 'path';
+import { copyAssets } from '../../utils/assets';
 import { checkDependencies } from '../../utils/check-dependencies';
 import {
-  ExecutorEvent,
+  getHelperDependency,
+  HelperDependency,
+} from '../../utils/compiler-helper-dependency';
+import {
+  handleInliningBuild,
+  isInlineGraphEmpty,
+  postProcessInlinedDependencies,
+} from '../../utils/inline';
+import { copyPackageJson } from '../../utils/package-json';
+import {
   NormalizedSwcExecutorOptions,
+  SwcCliOptions,
   SwcExecutorOptions,
 } from '../../utils/schema';
-import { addTempSwcrc } from '../../utils/swc/add-temp-swcrc';
-import { compileSwc } from '../../utils/swc/compile-swc';
-import { updatePackageJson } from '../../utils/update-package-json';
+import { compileSwc, compileSwcWatch } from '../../utils/swc/compile-swc';
+import { getSwcrcPath } from '../../utils/swc/get-swcrc-path';
+import { generateTmpSwcrc } from '../../utils/swc/inline';
 
-export function normalizeOptions(
+function normalizeOptions(
   options: SwcExecutorOptions,
-  contextRoot: string,
-  sourceRoot?: string,
-  projectRoot?: string
+  root: string,
+  sourceRoot: string,
+  projectRoot: string
 ): NormalizedSwcExecutorOptions {
-  const outputPath = join(contextRoot, options.outputPath);
+  const outputPath = join(root, options.outputPath);
 
   if (options.skipTypeCheck == null) {
     options.skipTypeCheck = false;
@@ -33,82 +40,192 @@ export function normalizeOptions(
     options.watch = false;
   }
 
+  // TODO: put back when inlining story is more stable
+  // if (options.external == null) {
+  //   options.external = 'all';
+  // } else if (Array.isArray(options.external) && options.external.length === 0) {
+  //   options.external = 'none';
+  // }
+
+  if (Array.isArray(options.external) && options.external.length > 0) {
+    const firstItem = options.external[0];
+    if (firstItem === 'all' || firstItem === 'none') {
+      options.external = firstItem;
+    }
+  }
+
   const files: FileInputOutput[] = assetGlobsToFiles(
     options.assets,
-    contextRoot,
+    root,
     outputPath
   );
 
+  // Always execute from root of project, same as with SWC CLI.
+  const swcCwd = join(root, projectRoot);
+  const { swcrcPath, tmpSwcrcPath } = getSwcrcPath(options, root, projectRoot);
+
   const swcCliOptions = {
-    projectDir: projectRoot.split('/').pop(),
-    // TODO: assume consumers put their code in `src`
-    destPath: `${relative(projectRoot, options.outputPath)}/src`,
+    srcPath: projectRoot,
+    destPath: relative(swcCwd, outputPath),
+    swcCwd,
+    swcrcPath,
+    stripLeadingPaths: Boolean(options.stripLeadingPaths),
   };
 
   return {
     ...options,
-    swcrcPath: join(projectRoot, '.swcrc'),
     mainOutputPath: resolve(
       outputPath,
       options.main.replace(`${projectRoot}/`, '').replace('.ts', '.js')
     ),
     files,
-    root: contextRoot,
+    root,
     sourceRoot,
     projectRoot,
+    originalProjectRoot: projectRoot,
     outputPath,
-    tsConfig: join(contextRoot, options.tsConfig),
+    tsConfig: join(root, options.tsConfig),
     swcCliOptions,
+    tmpSwcrcPath,
   } as NormalizedSwcExecutorOptions;
 }
 
 export async function* swcExecutor(
-  options: SwcExecutorOptions,
+  _options: SwcExecutorOptions,
   context: ExecutorContext
 ) {
-  const { sourceRoot, root } = context.workspace.projects[context.projectName];
-  const normalizedOptions = normalizeOptions(
-    options,
-    context.root,
-    sourceRoot,
-    root
-  );
-  normalizedOptions.swcrcPath = addTempSwcrc(normalizedOptions);
-  const { tmpTsConfig, projectRoot } = checkDependencies(
+  const { sourceRoot, root } =
+    context.projectsConfigurations.projects[context.projectName];
+  const options = normalizeOptions(_options, context.root, sourceRoot, root);
+  const { tmpTsConfig, dependencies } = checkDependencies(
     context,
     options.tsConfig
   );
 
   if (tmpTsConfig) {
-    normalizedOptions.tsConfig = tmpTsConfig;
+    options.tsConfig = tmpTsConfig;
   }
 
-  return yield* eachValueFrom(
-    compileSwc(context, normalizedOptions, async () => {
-      await updatePackageAndCopyAssets(normalizedOptions, projectRoot);
-    }).pipe(
-      map(
-        ({ success }) =>
-          ({
-            success,
-            outfile: normalizedOptions.mainOutputPath,
-          } as ExecutorEvent)
-      )
-    )
+  const swcHelperDependency = getHelperDependency(
+    HelperDependency.swc,
+    options.swcCliOptions.swcrcPath,
+    dependencies,
+    context.projectGraph
   );
+
+  if (swcHelperDependency) {
+    dependencies.push(swcHelperDependency);
+  }
+
+  const inlineProjectGraph = handleInliningBuild(
+    context,
+    options,
+    options.tsConfig
+  );
+
+  if (!isInlineGraphEmpty(inlineProjectGraph)) {
+    if (options.stripLeadingPaths) {
+      throw new Error(`Cannot use --strip-leading-paths with inlining.`);
+    }
+
+    options.projectRoot = '.'; // set to root of workspace to include other libs for type check
+
+    // remap paths for SWC compilation
+    options.inline = true;
+    options.swcCliOptions.swcCwd = '.';
+    options.swcCliOptions.srcPath = options.swcCliOptions.swcCwd;
+    options.swcCliOptions.destPath = join(
+      options.swcCliOptions.destPath.split(normalize('../')).at(-1),
+      options.swcCliOptions.srcPath
+    );
+
+    // tmp swcrc with dependencies to exclude
+    // - buildable libraries
+    // - other libraries that are not dependent on the current project
+    options.swcCliOptions.swcrcPath = generateTmpSwcrc(
+      inlineProjectGraph,
+      options.swcCliOptions.swcrcPath,
+      options.tmpSwcrcPath
+    );
+  }
+
+  function determineModuleFormatFromSwcrc(
+    absolutePathToSwcrc: string
+  ): 'cjs' | 'esm' {
+    const swcrc = readJsonFile(absolutePathToSwcrc);
+    return swcrc.module?.type?.startsWith('es') ? 'esm' : 'cjs';
+  }
+
+  if (options.watch) {
+    let disposeFn: () => void;
+    process.on('SIGINT', () => disposeFn());
+    process.on('SIGTERM', () => disposeFn());
+
+    return yield* compileSwcWatch(context, options, async () => {
+      const assetResult = await copyAssets(options, context);
+      const packageJsonResult = await copyPackageJson(
+        {
+          ...options,
+          additionalEntryPoints: createEntryPoints(options, context),
+          format: [
+            determineModuleFormatFromSwcrc(options.swcCliOptions.swcrcPath),
+          ],
+          // As long as d.ts files match their .js counterparts, we don't need to emit them.
+          // TSC can match them correctly based on file names.
+          skipTypings: true,
+        },
+        context
+      );
+      removeTmpSwcrc(options.swcCliOptions.swcrcPath);
+      disposeFn = () => {
+        assetResult?.stop();
+        packageJsonResult?.stop();
+      };
+    });
+  } else {
+    return yield compileSwc(context, options, async () => {
+      await copyAssets(options, context);
+      await copyPackageJson(
+        {
+          ...options,
+          additionalEntryPoints: createEntryPoints(options, context),
+          format: [
+            determineModuleFormatFromSwcrc(options.swcCliOptions.swcrcPath),
+          ],
+          // As long as d.ts files match their .js counterparts, we don't need to emit them.
+          // TSC can match them correctly based on file names.
+          skipTypings: true,
+          extraDependencies: swcHelperDependency ? [swcHelperDependency] : [],
+        },
+        context
+      );
+      removeTmpSwcrc(options.swcCliOptions.swcrcPath);
+      postProcessInlinedDependencies(
+        options.outputPath,
+        options.originalProjectRoot,
+        inlineProjectGraph
+      );
+    });
+  }
 }
 
-async function updatePackageAndCopyAssets(
-  options: NormalizedSwcExecutorOptions,
-  projectRoot: string
-) {
-  await copyAssetFiles(options.files);
-  updatePackageJson(
-    options.main,
-    options.outputPath,
-    projectRoot,
-    !options.skipTypeCheck
-  );
+function removeTmpSwcrc(swcrcPath: string) {
+  if (
+    swcrcPath.includes(normalize('tmp/')) &&
+    swcrcPath.includes('.generated.swcrc')
+  ) {
+    removeSync(dirname(swcrcPath));
+  }
+}
+
+function createEntryPoints(
+  options: { additionalEntryPoints?: string[] },
+  context: ExecutorContext
+): string[] {
+  if (!options.additionalEntryPoints?.length) return [];
+  return globSync(options.additionalEntryPoints, {
+    cwd: context.root,
+  });
 }
 
 export default swcExecutor;

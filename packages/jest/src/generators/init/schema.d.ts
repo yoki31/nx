@@ -1,7 +1,8 @@
 export interface JestInitSchema {
-  compiler?: 'tsc' | 'babel';
-  /**
-   * @deprecated
-   */
-  babelJest?: boolean;
+  skipFormat?: boolean;
+  skipPackageJson?: boolean;
+  keepExistingVersions?: boolean;
+  updatePackageScripts?: boolean;
+
+  addPlugin?: boolean;
 }

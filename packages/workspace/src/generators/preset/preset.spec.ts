@@ -1,90 +1,68 @@
-import { Tree, readJson, NxJsonConfiguration } from '@nrwl/devkit';
-import { createTreeWithEmptyWorkspace } from '@nrwl/devkit/testing';
-import { overrideCollectionResolutionForTesting } from '@nrwl/devkit/ngcli-adapter';
+import 'nx/src/internal-testing-utils/mock-project-graph';
+
+import { readProjectConfiguration, Tree } from '@nx/devkit';
+import { createTreeWithEmptyWorkspace } from '@nx/devkit/testing';
 import { presetGenerator } from './preset';
-import * as path from 'path';
 import { Preset } from '../utils/presets';
 
 describe('preset', () => {
   let tree: Tree;
 
   beforeEach(() => {
-    tree = createTreeWithEmptyWorkspace();
-    overrideCollectionResolutionForTesting({
-      '@nrwl/workspace': path.join(
-        __dirname,
-        '../../../../workspace/generators.json'
-      ),
-      '@nrwl/angular': path.join(
-        __dirname,
-        '../../../../angular/generators.json'
-      ),
-      '@nrwl/linter': path.join(
-        __dirname,
-        '../../../../linter/generators.json'
-      ),
-      '@nrwl/nest': path.join(__dirname, '../../../../nest/generators.json'),
-      '@nrwl/node': path.join(__dirname, '../../../../node/generators.json'),
-      '@nrwl/jest': path.join(__dirname, '../../../../jest/generators.json'),
-      '@nrwl/cypress': path.join(
-        __dirname,
-        '../../../../cypress/generators.json'
-      ),
-      '@nrwl/express': path.join(
-        __dirname,
-        '../../../../express/generators.json'
-      ),
-    });
+    tree = createTreeWithEmptyWorkspace({ layout: 'apps-libs' });
   });
 
-  afterEach(() => {
-    overrideCollectionResolutionForTesting(null);
-  });
-
-  it(`should create files (preset = ${Preset.Angular})`, async () => {
+  it(`should create files (preset = ${Preset.AngularMonorepo})`, async () => {
     await presetGenerator(tree, {
       name: 'proj',
-      preset: Preset.Angular,
-      cli: 'nx',
+      preset: Preset.AngularMonorepo,
       style: 'css',
       linter: 'eslint',
-      standaloneConfig: false,
     });
     expect(tree.children('apps/proj')).toMatchSnapshot();
     expect(tree.children('apps/proj/src/')).toMatchSnapshot();
     expect(tree.children('apps/proj/src/app')).toMatchSnapshot();
-
-    expect(
-      readJson<NxJsonConfiguration>(tree, 'nx.json').cli.defaultCollection
-    ).toBe('@nrwl/angular');
-  });
+  }, 20000);
 
   it(`should create files (preset = ${Preset.WebComponents})`, async () => {
     await presetGenerator(tree, {
       name: 'proj',
       preset: Preset.WebComponents,
-      cli: 'nx',
-      standaloneConfig: false,
     });
     expect(tree.exists('/apps/proj/src/main.ts')).toBe(true);
-    expect(
-      readJson<NxJsonConfiguration>(tree, 'nx.json').cli.defaultCollection
-    ).toBe('@nrwl/web');
   });
 
-  it(`should create files (preset = ${Preset.React})`, async () => {
+  it(`should create files (preset = ${Preset.ReactMonorepo})`, async () => {
     await presetGenerator(tree, {
       name: 'proj',
-      preset: Preset.React,
+      preset: Preset.ReactMonorepo,
       style: 'css',
       linter: 'eslint',
-      cli: 'nx',
-      standaloneConfig: false,
     });
     expect(tree.exists('/apps/proj/src/main.tsx')).toBe(true);
-    expect(
-      readJson<NxJsonConfiguration>(tree, 'nx.json').cli.defaultCollection
-    ).toBe('@nrwl/react');
+    expect(tree.read('apps/proj/webpack.config.js', 'utf-8')).toMatchSnapshot();
+  });
+
+  it(`should create files (preset = ${Preset.VueMonorepo})`, async () => {
+    await presetGenerator(tree, {
+      name: 'proj',
+      preset: Preset.VueMonorepo,
+      style: 'css',
+      linter: 'eslint',
+    });
+    expect(tree.exists('apps/proj/src/main.ts')).toBe(true);
+    expect(tree.read('apps/proj/vite.config.ts', 'utf-8')).toMatchSnapshot();
+  });
+
+  it(`should create files (preset = ${Preset.Nuxt})`, async () => {
+    await presetGenerator(tree, {
+      name: 'proj',
+      preset: Preset.Nuxt,
+      style: 'css',
+      linter: 'eslint',
+    });
+    expect(tree.exists('apps/proj/src/app.vue')).toBe(true);
+    expect(readProjectConfiguration(tree, 'proj')).toBeDefined();
   });
 
   it(`should create files (preset = ${Preset.NextJs})`, async () => {
@@ -93,49 +71,8 @@ describe('preset', () => {
       preset: Preset.NextJs,
       style: 'css',
       linter: 'eslint',
-      cli: 'nx',
-      standaloneConfig: false,
     });
-    expect(tree.exists('/apps/proj/pages/index.tsx')).toBe(true);
-    expect(
-      readJson<NxJsonConfiguration>(tree, 'nx.json').cli.defaultCollection
-    ).toBe('@nrwl/next');
-  });
-
-  it(`should create files (preset = ${Preset.AngularWithNest})`, async () => {
-    await presetGenerator(tree, {
-      name: 'proj',
-      preset: Preset.AngularWithNest,
-      style: 'css',
-      linter: 'eslint',
-      cli: 'nx',
-      standaloneConfig: false,
-    });
-
-    expect(tree.exists('/apps/proj/src/app/app.component.ts')).toBe(true);
-    expect(tree.exists('/apps/api/src/app/app.controller.ts')).toBe(true);
-    expect(tree.exists('/libs/api-interfaces/src/lib/api-interfaces.ts')).toBe(
-      true
-    );
-  });
-
-  it(`should create files (preset = ${Preset.ReactWithExpress})`, async () => {
-    await presetGenerator(tree, {
-      name: 'proj',
-      preset: Preset.ReactWithExpress,
-      style: 'css',
-      linter: 'eslint',
-      cli: 'nx',
-      standaloneConfig: false,
-    });
-
-    expect(tree.exists('/apps/proj/src/app/app.tsx')).toBe(true);
-    expect(tree.exists('/libs/api-interfaces/src/lib/api-interfaces.ts')).toBe(
-      true
-    );
-    expect(tree.exists('/apps/proj/.eslintrc.json')).toBe(true);
-    expect(tree.exists('/apps/api/.eslintrc.json')).toBe(true);
-    expect(tree.exists('/libs/api-interfaces/.eslintrc.json')).toBe(true);
+    expect(tree.exists('/apps/proj/src/app/page.tsx')).toBe(true);
   });
 
   it(`should create files (preset = ${Preset.Express})`, async () => {
@@ -143,28 +80,10 @@ describe('preset', () => {
       name: 'proj',
       preset: Preset.Express,
       linter: 'eslint',
-      cli: 'nx',
-      standaloneConfig: false,
     });
 
     expect(tree.exists('apps/proj/src/main.ts')).toBe(true);
     expect(tree.exists('apps/proj/.eslintrc.json')).toBe(true);
-  });
-
-  it(`should create files (preset = ${Preset.Gatsby})`, async () => {
-    await presetGenerator(tree, {
-      name: 'proj',
-      preset: Preset.Gatsby,
-      style: 'css',
-      linter: 'eslint',
-      cli: 'nx',
-      standaloneConfig: false,
-    });
-
-    expect(tree.exists('/apps/proj/src/pages/index.tsx')).toBe(true);
-    expect(
-      readJson<NxJsonConfiguration>(tree, 'nx.json').cli.defaultCollection
-    ).toBe('@nrwl/gatsby');
   });
 
   it('should create files (preset = react-native)', async () => {
@@ -172,13 +91,54 @@ describe('preset', () => {
       name: 'proj',
       preset: Preset.ReactNative,
       linter: 'eslint',
-      cli: 'nx',
-      standaloneConfig: false,
     });
 
     expect(tree.exists('/apps/proj/src/app/App.tsx')).toBe(true);
-    expect(
-      readJson<NxJsonConfiguration>(tree, 'nx.json').cli.defaultCollection
-    ).toBe('@nrwl/react-native');
+  });
+
+  it(`should create files (preset = ${Preset.ReactStandalone} bundler = webpack)`, async () => {
+    await presetGenerator(tree, {
+      name: 'proj',
+      preset: Preset.ReactStandalone,
+      style: 'css',
+      linter: 'eslint',
+      bundler: 'webpack',
+    });
+    expect(tree.exists('webpack.config.js')).toBe(true);
+    expect(tree.read('webpack.config.js', 'utf-8')).toMatchSnapshot();
+  });
+
+  it(`should create files (preset = ${Preset.ReactStandalone} bundler = vite)`, async () => {
+    await presetGenerator(tree, {
+      name: 'proj',
+      preset: Preset.ReactStandalone,
+      style: 'css',
+      linter: 'eslint',
+      bundler: 'vite',
+    });
+    expect(tree.exists('vite.config.ts')).toBe(true);
+    expect(tree.read('vite.config.ts', 'utf-8')).toMatchSnapshot();
+  });
+
+  it(`should create files (preset = ${Preset.VueStandalone})`, async () => {
+    await presetGenerator(tree, {
+      name: 'proj',
+      preset: Preset.VueStandalone,
+      style: 'css',
+      e2eTestRunner: 'cypress',
+    });
+    expect(tree.exists('vite.config.ts')).toBe(true);
+    expect(tree.read('vite.config.ts', 'utf-8')).toMatchSnapshot();
+  });
+
+  it(`should create files (preset = ${Preset.NuxtStandalone})`, async () => {
+    await presetGenerator(tree, {
+      name: 'proj',
+      preset: Preset.NuxtStandalone,
+      style: 'css',
+      e2eTestRunner: 'cypress',
+    });
+    expect(tree.exists('nuxt.config.ts')).toBe(true);
+    expect(readProjectConfiguration(tree, 'proj')).toBeDefined();
   });
 });

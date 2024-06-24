@@ -1,68 +1,61 @@
-import { runTasksInSerial } from '@nrwl/workspace/src/utilities/run-tasks-in-serial';
-import { Linter, lintProjectGenerator } from '@nrwl/linter';
+import { Linter, lintProjectGenerator } from '@nx/eslint';
 import {
   addDependenciesToPackageJson,
-  joinPathFragments,
-  updateJson,
+  GeneratorCallback,
+  runTasksInSerial,
   Tree,
-} from '@nrwl/devkit';
-import { extraEslintDependencies, createReactEslintJson } from '@nrwl/react';
-import type { Linter as ESLintLinter } from 'eslint';
+} from '@nx/devkit';
+import { extraEslintDependencies } from '@nx/react/src/utils/lint';
+import {
+  addExtendsToLintConfig,
+  addIgnoresToLintConfig,
+  isEslintConfigSupported,
+} from '@nx/eslint/src/generators/utils/eslint-file';
 
-export async function addLinting(
-  host: Tree,
-  projectName: string,
-  appProjectRoot: string,
-  tsConfigPaths: string[],
-  linter: Linter,
-  setParserOptionsProject?: boolean
-) {
-  if (linter === Linter.None) {
+interface NormalizedSchema {
+  linter?: Linter;
+  projectName: string;
+  projectRoot: string;
+  setParserOptionsProject?: boolean;
+  tsConfigPaths: string[];
+  skipPackageJson?: boolean;
+  addPlugin?: boolean;
+}
+
+export async function addLinting(host: Tree, options: NormalizedSchema) {
+  if (options.linter === Linter.None) {
     return () => {};
   }
+  const tasks: GeneratorCallback[] = [];
 
   const lintTask = await lintProjectGenerator(host, {
-    linter,
-    project: projectName,
-    tsConfigPaths,
-    eslintFilePatterns: [`${appProjectRoot}/**/*.{ts,tsx,js,jsx}`],
+    linter: options.linter,
+    project: options.projectName,
+    tsConfigPaths: options.tsConfigPaths,
     skipFormat: true,
+    skipPackageJson: options.skipPackageJson,
+    addPlugin: options.addPlugin,
   });
 
-  if (linter === Linter.TsLint) {
-    return () => {};
+  tasks.push(lintTask);
+
+  if (isEslintConfigSupported(host)) {
+    addExtendsToLintConfig(host, options.projectRoot, 'plugin:@nx/react');
+    addIgnoresToLintConfig(host, options.projectRoot, [
+      'public',
+      '.cache',
+      'node_modules',
+    ]);
   }
 
-  const reactEslintJson = createReactEslintJson(
-    appProjectRoot,
-    setParserOptionsProject
-  );
+  if (!options.skipPackageJson) {
+    const installTask = await addDependenciesToPackageJson(
+      host,
+      extraEslintDependencies.dependencies,
+      extraEslintDependencies.devDependencies
+    );
+    tasks.push(installTask);
+  }
 
-  updateJson(
-    host,
-    joinPathFragments(appProjectRoot, '.eslintrc.json'),
-    (json: ESLintLinter.Config) => {
-      json = reactEslintJson;
-      json.ignorePatterns = ['!**/*', 'public', '.cache', 'node_modules'];
-
-      // Find the override that handles both TS and JS files.
-      const commonOverride = json.overrides?.find((o) =>
-        ['*.ts', '*.tsx', '*.js', '*.jsx'].every((ext) => o.files.includes(ext))
-      );
-      if (commonOverride) {
-        commonOverride.rules = commonOverride.rules || {};
-        commonOverride.rules['@typescript-eslint/ban-ts-comment'] = 'off';
-      }
-
-      return json;
-    }
-  );
-
-  const installTask = await addDependenciesToPackageJson(
-    host,
-    extraEslintDependencies.dependencies,
-    extraEslintDependencies.devDependencies
-  );
-
-  return runTasksInSerial(lintTask, installTask);
+  return runTasksInSerial(...tasks);
 }

@@ -1,17 +1,19 @@
-import * as ts from 'typescript';
-import { findNodes } from '@nrwl/workspace/src/utilities/typescript/find-nodes';
-import {
-  ChangeType,
-  logger,
-  StringChange,
-  StringInsertion,
-} from '@nrwl/devkit';
+import type * as ts from 'typescript';
+import { findNodes } from '@nx/js';
+import { ChangeType, logger, StringChange, StringInsertion } from '@nx/devkit';
+import { ensureTypescript } from '@nx/js/src/utils/typescript/ensure-typescript';
+
+let tsModule: typeof import('typescript');
 
 export function addImport(
   source: ts.SourceFile,
   statement: string
 ): StringChange[] {
-  const allImports = findNodes(source, ts.SyntaxKind.ImportDeclaration);
+  if (!tsModule) {
+    tsModule = ensureTypescript();
+  }
+
+  const allImports = findNodes(source, tsModule.SyntaxKind.ImportDeclaration);
   if (allImports.length > 0) {
     const lastImport = allImports[allImports.length - 1];
     return [
@@ -35,17 +37,31 @@ export function addImport(
 export function findMainRenderStatement(
   source: ts.SourceFile
 ): ts.CallExpression | null {
+  if (!tsModule) {
+    tsModule = ensureTypescript();
+  }
+
   // 1. Try to find ReactDOM.render.
   const calls = findNodes(
     source,
-    ts.SyntaxKind.CallExpression
+    tsModule.SyntaxKind.CallExpression
   ) as ts.CallExpression[];
 
   for (const expr of calls) {
     const inner = expr.expression;
+    // React 17 and below
     if (
-      ts.isPropertyAccessExpression(inner) &&
+      tsModule.isPropertyAccessExpression(inner) &&
       /ReactDOM/i.test(inner.expression.getText()) &&
+      inner.name.getText() === 'render'
+    ) {
+      return expr;
+    }
+
+    // React 18
+    if (
+      tsModule.isPropertyAccessExpression(inner) &&
+      /root/.test(inner.expression.getText()) &&
       inner.name.getText() === 'render'
     ) {
       return expr;
@@ -55,7 +71,7 @@ export function findMainRenderStatement(
   // 2. Try to find render from 'react-dom'.
   const imports = findNodes(
     source,
-    ts.SyntaxKind.ImportDeclaration
+    tsModule.SyntaxKind.ImportDeclaration
   ) as ts.ImportDeclaration[];
   const hasRenderImport = imports.some(
     (i) =>
@@ -65,7 +81,7 @@ export function findMainRenderStatement(
   if (hasRenderImport) {
     const calls = findNodes(
       source,
-      ts.SyntaxKind.CallExpression
+      tsModule.SyntaxKind.CallExpression
     ) as ts.CallExpression[];
     for (const expr of calls) {
       if (expr.expression.getText() === 'render') {
@@ -77,7 +93,13 @@ export function findMainRenderStatement(
   return null;
 }
 
-export function findDefaultExport(source: ts.SourceFile): ts.Node | null {
+export function findDefaultExport(
+  source: ts.SourceFile
+):
+  | ts.VariableDeclaration
+  | ts.FunctionDeclaration
+  | ts.ClassDeclaration
+  | null {
   return (
     findDefaultExportDeclaration(source) || findDefaultClassOrFunction(source)
   );
@@ -85,19 +107,28 @@ export function findDefaultExport(source: ts.SourceFile): ts.Node | null {
 
 export function findDefaultExportDeclaration(
   source: ts.SourceFile
-): ts.Node | null {
+):
+  | ts.VariableDeclaration
+  | ts.FunctionDeclaration
+  | ts.ClassDeclaration
+  | null {
+  if (!tsModule) {
+    tsModule = ensureTypescript();
+  }
   const identifier = findDefaultExportIdentifier(source);
-
   if (identifier) {
-    const variables = findNodes(source, ts.SyntaxKind.VariableDeclaration);
-    const fns = findNodes(source, ts.SyntaxKind.FunctionDeclaration);
-    const cls = findNodes(source, ts.SyntaxKind.ClassDeclaration);
+    const variables = findNodes(
+      source,
+      tsModule.SyntaxKind.VariableDeclaration
+    );
+    const fns = findNodes(source, tsModule.SyntaxKind.FunctionDeclaration);
+    const cls = findNodes(source, tsModule.SyntaxKind.ClassDeclaration);
     const all = [...variables, ...fns, ...cls] as Array<
       ts.VariableDeclaration | ts.FunctionDeclaration | ts.ClassDeclaration
     >;
 
     const exported = all
-      .filter((x) => x.name.kind === ts.SyntaxKind.Identifier)
+      .filter((x) => x.name.kind === tsModule.SyntaxKind.Identifier)
       .find((x) => (x.name as ts.Identifier).text === identifier.text);
 
     return exported || null;
@@ -106,31 +137,122 @@ export function findDefaultExportDeclaration(
   }
 }
 
+export function findExportDeclarationsForJsx(
+  source: ts.SourceFile
+): Array<
+  ts.VariableDeclaration | ts.FunctionDeclaration | ts.ClassDeclaration
+> | null {
+  if (!tsModule) {
+    tsModule = ensureTypescript();
+  }
+  const variables = findNodes(source, tsModule.SyntaxKind.VariableDeclaration);
+  const variableStatements = findNodes(
+    source,
+    tsModule.SyntaxKind.VariableStatement
+  );
+  const fns = findNodes(source, tsModule.SyntaxKind.FunctionDeclaration);
+  const cls = findNodes(source, tsModule.SyntaxKind.ClassDeclaration);
+
+  const exportDeclarations: ts.ExportDeclaration[] = findNodes(
+    source,
+    tsModule.SyntaxKind.ExportDeclaration
+  ) as ts.ExportDeclaration[];
+
+  let componentNamesNodes: ts.Node[] = [];
+
+  exportDeclarations.forEach((node) => {
+    componentNamesNodes = [
+      ...componentNamesNodes,
+      ...findNodes(node, tsModule.SyntaxKind.ExportSpecifier),
+    ];
+  });
+
+  const componentNames = componentNamesNodes?.map((node) => node.getText());
+
+  const all = [...variables, ...variableStatements, ...fns, ...cls] as Array<
+    | ts.VariableDeclaration
+    | ts.VariableStatement
+    | ts.FunctionDeclaration
+    | ts.ClassDeclaration
+  >;
+  let foundExport: ts.Node[];
+  let foundJSX: ts.Node[];
+
+  const nodesContainingJSX = all.filter((x) => {
+    foundJSX = findNodes(x, [
+      tsModule.SyntaxKind.JsxSelfClosingElement,
+      tsModule.SyntaxKind.JsxOpeningElement,
+    ]);
+    return foundJSX?.length;
+  });
+
+  const exported = nodesContainingJSX.filter((x) => {
+    foundExport = findNodes(x, tsModule.SyntaxKind.ExportKeyword);
+    if (x.kind === tsModule.SyntaxKind.VariableStatement) {
+      const nameNode = findNodes(
+        x,
+        tsModule.SyntaxKind.VariableDeclaration
+      )?.[0] as ts.VariableDeclaration;
+      return (
+        nameNode?.name?.kind === tsModule.SyntaxKind.Identifier ||
+        foundExport?.length ||
+        componentNames?.includes(nameNode?.name?.getText())
+      );
+    } else {
+      return (
+        (x.name.kind === tsModule.SyntaxKind.Identifier &&
+          foundExport?.length) ||
+        componentNames?.includes(x.name.getText())
+      );
+    }
+  });
+
+  const exportedDeclarations: Array<
+    ts.VariableDeclaration | ts.FunctionDeclaration | ts.ClassDeclaration
+  > = exported.map((x) => {
+    if (x.kind === tsModule.SyntaxKind.VariableStatement) {
+      const nameNode = findNodes(
+        x,
+        tsModule.SyntaxKind.VariableDeclaration
+      )?.[0] as ts.VariableDeclaration;
+      return nameNode;
+    }
+    return x;
+  });
+
+  return exportedDeclarations || null;
+}
+
 export function findDefaultExportIdentifier(
   source: ts.SourceFile
 ): ts.Identifier | null {
+  if (!tsModule) {
+    tsModule = ensureTypescript();
+  }
   const exports = findNodes(
     source,
-    ts.SyntaxKind.ExportAssignment
+    tsModule.SyntaxKind.ExportAssignment
   ) as ts.ExportAssignment[];
-
   const identifier = exports
     .map((x) => x.expression)
-    .find((x) => x.kind === ts.SyntaxKind.Identifier) as ts.Identifier;
+    .find((x) => x.kind === tsModule.SyntaxKind.Identifier) as ts.Identifier;
 
   return identifier || null;
 }
 
 export function findDefaultClassOrFunction(
-  source: ts.SourceFile
+  source: ts.SourceFile | null
 ): ts.FunctionDeclaration | ts.ClassDeclaration | null {
+  if (!tsModule) {
+    tsModule = ensureTypescript();
+  }
   const fns = findNodes(
     source,
-    ts.SyntaxKind.FunctionDeclaration
+    tsModule.SyntaxKind.FunctionDeclaration
   ) as ts.FunctionDeclaration[];
   const cls = findNodes(
     source,
-    ts.SyntaxKind.ClassDeclaration
+    tsModule.SyntaxKind.ClassDeclaration
   ) as ts.ClassDeclaration[];
 
   return (
@@ -143,10 +265,13 @@ export function findDefaultClassOrFunction(
 function hasDefaultExportModifier(
   x: ts.ClassDeclaration | ts.FunctionDeclaration
 ) {
+  if (!tsModule) {
+    tsModule = ensureTypescript();
+  }
   return (
     x.modifiers &&
-    x.modifiers.some((m) => m.kind === ts.SyntaxKind.ExportKeyword) &&
-    x.modifiers.some((m) => m.kind === ts.SyntaxKind.DefaultKeyword)
+    x.modifiers.some((m) => m.kind === tsModule.SyntaxKind.ExportKeyword) &&
+    x.modifiers.some((m) => m.kind === tsModule.SyntaxKind.DefaultKeyword)
   );
 }
 
@@ -154,9 +279,12 @@ export function findComponentImportPath(
   componentName: string,
   source: ts.SourceFile
 ) {
+  if (!tsModule) {
+    tsModule = ensureTypescript();
+  }
   const allImports = findNodes(
     source,
-    ts.SyntaxKind.ImportDeclaration
+    tsModule.SyntaxKind.ImportDeclaration
   ) as ts.ImportDeclaration[];
   const matching = allImports.filter((i: ts.ImportDeclaration) => {
     return (
@@ -175,9 +303,12 @@ export function findComponentImportPath(
 }
 
 export function findElements(source: ts.SourceFile, tagName: string) {
+  if (!tsModule) {
+    tsModule = ensureTypescript();
+  }
   const nodes = findNodes(source, [
-    ts.SyntaxKind.JsxSelfClosingElement,
-    ts.SyntaxKind.JsxOpeningElement,
+    tsModule.SyntaxKind.JsxSelfClosingElement,
+    tsModule.SyntaxKind.JsxOpeningElement,
   ]);
   return nodes.filter((node) => isTag(tagName, node));
 }
@@ -195,16 +326,19 @@ export function findClosestOpening(tagName: string, node: ts.Node) {
 }
 
 export function isTag(tagName: string, node: ts.Node) {
-  if (ts.isJsxOpeningLikeElement(node)) {
+  if (!tsModule) {
+    tsModule = ensureTypescript();
+  }
+  if (tsModule.isJsxOpeningLikeElement(node)) {
     return (
-      node.tagName.kind === ts.SyntaxKind.Identifier &&
+      node.tagName.kind === tsModule.SyntaxKind.Identifier &&
       node.tagName.text === tagName
     );
   }
 
-  if (ts.isJsxElement(node) && node.openingElement) {
+  if (tsModule.isJsxElement(node) && node.openingElement) {
     return (
-      node.openingElement.tagName.kind === ts.SyntaxKind.Identifier &&
+      node.openingElement.tagName.kind === tsModule.SyntaxKind.Identifier &&
       node.openingElement.tagName.getText() === tagName
     );
   }
@@ -216,9 +350,13 @@ export function addInitialRoutes(
   sourcePath: string,
   source: ts.SourceFile
 ): StringChange[] {
+  if (!tsModule) {
+    tsModule = ensureTypescript();
+  }
+
   const jsxClosingElements = findNodes(source, [
-    ts.SyntaxKind.JsxClosingElement,
-    ts.SyntaxKind.JsxClosingFragment,
+    tsModule.SyntaxKind.JsxClosingElement,
+    tsModule.SyntaxKind.JsxClosingFragment,
   ]);
   const outerMostJsxClosing = jsxClosingElements[jsxClosingElements.length - 1];
 
@@ -245,26 +383,29 @@ export function addInitialRoutes(
         <li><Link to="/page-2">Page 2</Link></li>
       </ul>
     </div>
-    <Route
-      path="/"
-      exact
-      render={() => (
-        <div>This is the generated root route. <Link to="/page-2">Click here for page 2.</Link></div>
-      )}
-    />
-    <Route
-      path="/page-2"
-      exact
-      render={() => (
-        <div><Link to="/">Click here to go back to root page.</Link></div>
-      )}
-    />
+    <Routes>
+      <Route
+        path="/"
+        element={
+          <div>This is the generated root route. <Link to="/page-2">Click here for page 2.</Link></div>
+        }
+      />
+      <Route
+        path="/page-2"
+        element={
+          <div><Link to="/">Click here to go back to root page.</Link></div>
+        }
+      />
+    </Routes>
     {/* END: routes */}
     `,
   };
 
   return [
-    ...addImport(source, `import { Route, Link } from 'react-router-dom';`),
+    ...addImport(
+      source,
+      `import { Route, Routes, Link } from 'react-router-dom';`
+    ),
     insertRoutes,
   ];
 }
@@ -301,7 +442,7 @@ export function addRoute(
     changes.push({
       type: ChangeType.Insert,
       index: firstRoute.getEnd(),
-      text: `<Route path="${options.routePath}" component={${options.componentName}} />`,
+      text: `<Route path="${options.routePath}" element={<${options.componentName}/>} />`,
     });
 
     if (firstLink) {
@@ -352,13 +493,43 @@ export function addBrowserRouter(
   }
 }
 
+export function addStaticRouter(
+  sourcePath: string,
+  source: ts.SourceFile
+): StringChange[] {
+  const app = findElements(source, 'App')[0];
+  if (app) {
+    return [
+      ...addImport(
+        source,
+        `import { StaticRouter } from 'react-router-dom/server';`
+      ),
+      {
+        type: ChangeType.Insert,
+        index: app.getStart(),
+        text: `<StaticRouter location={req.originalUrl}>`,
+      },
+      {
+        type: ChangeType.Insert,
+        index: app.getEnd(),
+        text: `</StaticRouter>`,
+      },
+    ];
+  } else {
+    logger.warn(
+      `Could not find App component in ${sourcePath}; Skipping add <StaticRouter>`
+    );
+    return [];
+  }
+}
+
 export function addReduxStoreToMain(
   sourcePath: string,
   source: ts.SourceFile
 ): StringChange[] {
   const renderStmt = findMainRenderStatement(source);
   if (!renderStmt) {
-    logger.warn(`Could not find ReactDOM.render in ${sourcePath}`);
+    logger.warn(`Could not find render(...) in ${sourcePath}`);
     return [];
   }
   const jsx = renderStmt.arguments[0];
@@ -405,9 +576,12 @@ export function updateReduxStore(
     modulePath: string;
   }
 ): StringChange[] {
+  if (!tsModule) {
+    tsModule = ensureTypescript();
+  }
   const calls = findNodes(
     source,
-    ts.SyntaxKind.CallExpression
+    tsModule.SyntaxKind.CallExpression
   ) as ts.CallExpression[];
 
   let reducerDescriptor: ts.ObjectLiteralExpression;
@@ -417,13 +591,13 @@ export function updateReduxStore(
       continue;
     }
     const arg = expr.arguments[0];
-    if (ts.isObjectLiteralExpression(arg)) {
+    if (tsModule.isObjectLiteralExpression(arg)) {
       let found: ts.ObjectLiteralExpression;
       for (const prop of arg.properties) {
         if (
-          ts.isPropertyAssignment(prop) &&
+          tsModule.isPropertyAssignment(prop) &&
           prop.name.getText() === 'reducer' &&
-          ts.isObjectLiteralExpression(prop.initializer)
+          tsModule.isObjectLiteralExpression(prop.initializer)
         ) {
           found = prop.initializer;
           break;
@@ -442,7 +616,7 @@ export function updateReduxStore(
         continue;
       }
       const arg = expr.arguments[0];
-      if (ts.isObjectLiteralExpression(arg)) {
+      if (tsModule.isObjectLiteralExpression(arg)) {
         reducerDescriptor = arg;
         break;
       }
@@ -471,13 +645,18 @@ export function updateReduxStore(
   ];
 }
 
-export function getComponentName(sourceFile: ts.SourceFile): ts.Node | null {
+export function getComponentNode(sourceFile: ts.SourceFile): ts.Node | null {
+  if (!tsModule) {
+    tsModule = ensureTypescript();
+  }
   const defaultExport = findDefaultExport(sourceFile);
 
   if (
     !(
       defaultExport &&
-      findNodes(defaultExport, ts.SyntaxKind.JsxElement).length > 0
+      (findNodes(defaultExport, tsModule.SyntaxKind.JsxElement).length > 0 ||
+        findNodes(defaultExport, tsModule.SyntaxKind.JsxSelfClosingElement)
+          .length > 0)
     )
   ) {
     return null;
@@ -487,40 +666,47 @@ export function getComponentName(sourceFile: ts.SourceFile): ts.Node | null {
 }
 
 export function getComponentPropsInterface(
-  sourceFile: ts.SourceFile
+  sourceFile: ts.SourceFile,
+  cmpDeclaration: ts.Node
 ): ts.InterfaceDeclaration | null {
-  const cmpDeclaration = getComponentName(sourceFile);
+  if (!tsModule) {
+    tsModule = ensureTypescript();
+  }
   let propsTypeName: string = null;
 
-  if (ts.isFunctionDeclaration(cmpDeclaration)) {
+  if (tsModule.isFunctionDeclaration(cmpDeclaration)) {
     const propsParam: ts.ParameterDeclaration = cmpDeclaration.parameters.find(
-      (x) => ts.isParameter(x) && (x.name as ts.Identifier).text === 'props'
+      (x) =>
+        tsModule.isParameter(x) && (x.name as ts.Identifier).text === 'props'
     );
 
-    if (propsParam && propsParam.type) {
+    if (propsParam?.type?.['typeName']) {
       propsTypeName = (
         (propsParam.type as ts.TypeReferenceNode).typeName as ts.Identifier
       ).text;
     }
   } else if (
     (cmpDeclaration as ts.VariableDeclaration).initializer &&
-    ts.isArrowFunction((cmpDeclaration as ts.VariableDeclaration).initializer)
+    tsModule.isArrowFunction(
+      (cmpDeclaration as ts.VariableDeclaration).initializer
+    )
   ) {
     const arrowFn = (cmpDeclaration as ts.VariableDeclaration)
       .initializer as ts.ArrowFunction;
 
     const propsParam: ts.ParameterDeclaration = arrowFn.parameters.find(
-      (x) => ts.isParameter(x) && (x.name as ts.Identifier).text === 'props'
+      (x) =>
+        tsModule.isParameter(x) && (x.name as ts.Identifier).text === 'props'
     );
 
-    if (propsParam && propsParam.type) {
+    if (propsParam?.type?.['typeName']) {
       propsTypeName = (
         (propsParam.type as ts.TypeReferenceNode).typeName as ts.Identifier
       ).text;
     }
   } else if (
     // do we have a class component extending from React.Component
-    ts.isClassDeclaration(cmpDeclaration) &&
+    tsModule.isClassDeclaration(cmpDeclaration) &&
     cmpDeclaration.heritageClauses &&
     cmpDeclaration.heritageClauses.length > 0
   ) {
@@ -534,7 +720,7 @@ export function getComponentPropsInterface(
         return name === 'Component' || name === 'PureComponent';
       });
 
-      if (propsTypeExpression && propsTypeExpression.typeArguments) {
+      if (propsTypeExpression?.typeArguments?.[0]?.['typeName']) {
         propsTypeName = (
           propsTypeExpression.typeArguments[0] as ts.TypeReferenceNode
         ).typeName.getText();
@@ -545,7 +731,7 @@ export function getComponentPropsInterface(
   }
 
   if (propsTypeName) {
-    return findNodes(sourceFile, ts.SyntaxKind.InterfaceDeclaration).find(
+    return findNodes(sourceFile, tsModule.SyntaxKind.InterfaceDeclaration).find(
       (x: ts.InterfaceDeclaration) => {
         return (x.name as ts.Identifier).getText() === propsTypeName;
       }

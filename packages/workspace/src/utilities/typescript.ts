@@ -1,47 +1,35 @@
+import { ensurePackage, Tree, workspaceRoot } from '@nx/devkit';
 import { dirname } from 'path';
 import type * as ts from 'typescript';
-import { appRootPath } from '@nrwl/tao/src/utils/app-root';
-
-export type { TypeScriptCompilationOptions } from './typescript/compilation';
+import { typescriptVersion } from '../utils/versions';
 export { compileTypeScript } from './typescript/compilation';
-export { findNodes } from './typescript/find-nodes';
+export type { TypeScriptCompilationOptions } from './typescript/compilation';
 export { getSourceNodes } from './typescript/get-source-nodes';
 
-const normalizedAppRoot = appRootPath.replace(/\\/g, '/');
+const normalizedAppRoot = workspaceRoot.replace(/\\/g, '/');
 
-let tsModule: any;
-
-export function readTsConfig(tsConfigPath: string) {
-  if (!tsModule) {
-    tsModule = require('typescript');
-  }
-  const readResult = tsModule.readConfigFile(
-    tsConfigPath,
-    tsModule.sys.readFile
-  );
-  return tsModule.parseJsonConfigFileContent(
-    readResult.config,
-    tsModule.sys,
-    dirname(tsConfigPath)
-  );
-}
+let tsModule: typeof import('typescript');
 
 function readTsConfigOptions(tsConfigPath: string) {
   if (!tsModule) {
-    tsModule = require('typescript');
+    tsModule = ensureTypescript();
   }
+
   const readResult = tsModule.readConfigFile(
     tsConfigPath,
     tsModule.sys.readFile
   );
+
   // we don't need to scan the files, we only care about options
-  const host = {
+  const host: Partial<ts.ParseConfigHost> = {
     readDirectory: () => [],
+    readFile: () => '',
     fileExists: tsModule.sys.fileExists,
   };
+
   return tsModule.parseJsonConfigFileContent(
     readResult.config,
-    host,
+    host as ts.ParseConfigHost,
     dirname(tsConfigPath)
   ).options;
 }
@@ -86,8 +74,20 @@ function getCompilerHost(tsConfigPath: string) {
   const options = readTsConfigOptions(tsConfigPath);
   const host = tsModule.createCompilerHost(options, true);
   const moduleResolutionCache = tsModule.createModuleResolutionCache(
-    appRootPath,
+    workspaceRoot,
     host.getCanonicalFileName
   );
   return { options, host, moduleResolutionCache };
 }
+
+export function ensureTypescript() {
+  return ensurePackage<typeof import('typescript')>(
+    'typescript',
+    typescriptVersion
+  );
+}
+
+import {
+  getRelativePathToRootTsConfig as _getRelativePathToRootTsConfig,
+  getRootTsConfigPathInTree as _getRootTsConfigPathInTree,
+} from './ts-config';

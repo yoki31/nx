@@ -1,7 +1,7 @@
 import * as utils from './ast-utils';
 import * as ts from 'typescript';
-import { createTreeWithEmptyWorkspace } from '@nrwl/devkit/testing';
-import { applyChangesToString, Tree } from '@nrwl/devkit';
+import { createTreeWithEmptyWorkspace } from '@nx/devkit/testing';
+import { applyChangesToString, Tree } from '@nx/devkit';
 
 describe('findDefaultExport', () => {
   it('should find exported variable', () => {
@@ -101,7 +101,7 @@ describe('addRoute', () => {
     context = {
       warn: jest.fn(),
     };
-    tree = createTreeWithEmptyWorkspace();
+    tree = createTreeWithEmptyWorkspace({ layout: 'apps-libs' });
   });
 
   it('should add links and routes if they are not present', async () => {
@@ -147,7 +147,7 @@ const App = () => (
       </div>
     </header>
     <p>Hello World!</p>
-    <Route path="/" component={Home}/>
+    <Route path="/" element={<Home/>}/>
   </>
 );
 export default App; 
@@ -170,7 +170,7 @@ export default App;
     );
 
     expect(result).toMatch(/<li><Link\s+to="\/about"/);
-    expect(result).toMatch(/<Route\s+path="\/about"\s+component={About}/);
+    expect(result).toMatch(/<Route\s+path="\/about"\s+element={<About\/>}/);
   });
 });
 
@@ -182,7 +182,7 @@ describe('addBrowserRouter', () => {
     context = {
       warn: jest.fn(),
     };
-    tree = createTreeWithEmptyWorkspace();
+    tree = createTreeWithEmptyWorkspace({ layout: 'apps-libs' });
   });
 
   it('should wrap around App component', () => {
@@ -216,14 +216,33 @@ describe('findMainRenderStatement', () => {
     context = {
       warn: jest.fn(),
     };
-    tree = createTreeWithEmptyWorkspace();
+    tree = createTreeWithEmptyWorkspace({ layout: 'apps-libs' });
   });
 
-  it('should return render(...)', () => {
+  it('should return ReactDOM.render(...)', () => {
     const sourceCode = `
 import React from 'react';
 import ReactDOM from 'react-dom';
 ReactDOM.render(<div/>, document.getElementById('root'));
+      `;
+    tree.write('/main.tsx', sourceCode);
+    const source = ts.createSourceFile(
+      '/main.tsx',
+      sourceCode,
+      ts.ScriptTarget.Latest,
+      true
+    );
+
+    const node = utils.findMainRenderStatement(source);
+    expect(node).toBeTruthy();
+  });
+
+  it('should return root.render(...)', () => {
+    const sourceCode = `
+import React from 'react';
+import ReactDOM from 'react-dom/client';
+const root = ReactDOM.createRoot(document.getElementById('root'));
+root.render(<div/>);
       `;
     tree.write('/main.tsx', sourceCode);
     const source = ts.createSourceFile(
@@ -278,7 +297,7 @@ describe('addReduxStoreToMain', () => {
     context = {
       warn: jest.fn(),
     };
-    tree = createTreeWithEmptyWorkspace();
+    tree = createTreeWithEmptyWorkspace({ layout: 'apps-libs' });
   });
 
   it('should wrap around App component', () => {
@@ -314,7 +333,7 @@ describe('updateReduxStore', () => {
     context = {
       warn: jest.fn(),
     };
-    tree = createTreeWithEmptyWorkspace();
+    tree = createTreeWithEmptyWorkspace({ layout: 'apps-libs' });
   });
 
   it('should update configureStore call', () => {
@@ -374,8 +393,95 @@ const store = createStore(combineReducer({}));
   });
 });
 
-describe('getComponentName', () => {
-  [
+describe('findExportDeclarationsForJsx', () => {
+  const testConfigs = [
+    {
+      testName: 'exporting a function',
+      src: `export function Test(props: TestProps) {
+        return (
+          <div>
+            <h1>Welcome to test component, {props.name}</h1>
+          </div>
+        );`,
+      expectedName: 'Test',
+    },
+    {
+      testName: 'exporting an arrow function',
+      src: `
+      export const Test = (props: TestProps) => {
+        return (
+          <div>
+            <h1>Welcome to test component, {props.name}</h1>
+          </div>
+        );
+      };
+      `,
+      expectedName: 'Test',
+    },
+    {
+      testName: 'defining an arrow function that directly returns JSX',
+      src: `
+      export const Test = (props: TestProps) => <div><h1>Welcome to test component, {props.name}</h1></div>;
+    `,
+      expectedName: 'Test',
+    },
+    {
+      testName: 'exporting a react class component',
+      src: `
+      export class Test extends React.Component<TestProps> {
+        render() {
+          return <div><h1>Welcome to test component, {this.props.name}</h1></div>;
+        }
+      }
+      `,
+      expectedName: 'Test',
+    },
+    {
+      testName: 'exporting a react functional component',
+      src: `
+      export const Test: React.FC<TestProps> = (props) => {
+        return (
+          <div>
+            <h1>Welcome to test component, {props.name}</h1>
+          </div>
+        );
+      };
+      `,
+      expectedName: 'Test',
+    },
+    {
+      testName: 'using a JSX self closing element',
+      src: `
+      export function Test(props: TestProps) {
+        return <img src='something' />;
+      };
+      `,
+      expectedName: 'Test',
+    },
+  ];
+
+  it.each(testConfigs)(
+    'should find the component when: $testName',
+    ({ src, expectedName }) => {
+      const source = ts.createSourceFile(
+        'some-component.tsx',
+        src,
+        ts.ScriptTarget.Latest,
+        true
+      );
+
+      const result: Array<
+        ts.VariableDeclaration | ts.FunctionDeclaration | ts.ClassDeclaration
+      > = utils.findExportDeclarationsForJsx(source) as any;
+
+      expect(result).toBeDefined();
+      expect(result[0]?.name.getText()).toEqual(expectedName);
+    }
+  );
+});
+
+describe('getComponentNode', () => {
+  const testConfigs = [
     {
       testName: 'exporting a function',
       src: `export default function Test(props: TestProps) {
@@ -444,21 +550,34 @@ describe('getComponentName', () => {
       `,
       expectedName: 'Test',
     },
-  ].forEach((testConfig) => {
-    it(`should find the component when ${testConfig.testName}`, () => {
+    {
+      testName: 'using a JSX self closing element',
+      src: `
+      function Test(props: TestProps) {
+        return <img src='something' />;
+      };
+      export default Test;
+      `,
+      expectedName: 'Test',
+    },
+  ];
+
+  it.each(testConfigs)(
+    'should find the component when: $testName',
+    ({ src, expectedName }) => {
       const source = ts.createSourceFile(
         'some-component.tsx',
-        testConfig.src,
+        src,
         ts.ScriptTarget.Latest,
         true
       );
 
-      const result = utils.getComponentName(source) as any;
+      const result = utils.getComponentNode(source) as any;
 
       expect(result).toBeDefined();
-      expect((result as any).name.text).toEqual(testConfig.expectedName);
-    });
-  });
+      expect((result as any).name.text).toEqual(expectedName);
+    }
+  );
 
   it('should return null if there is no component', () => {
     const source = ts.createSourceFile(
@@ -468,7 +587,7 @@ describe('getComponentName', () => {
       true
     );
 
-    const result = utils.getComponentName(source) as any;
+    const result = utils.getComponentNode(source) as any;
 
     expect(result).toBeNull();
   });

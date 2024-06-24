@@ -1,9 +1,8 @@
-import type { Tree } from '@nrwl/devkit';
+import type { Tree } from '@nx/devkit';
 import {
-  getWorkspaceLayout,
   readProjectConfiguration,
   updateProjectConfiguration,
-} from '@nrwl/devkit';
+} from '@nx/devkit';
 import type { NormalizedOptions } from '../schema';
 
 export function addProject(tree: Tree, options: NormalizedOptions): void {
@@ -13,12 +12,10 @@ export function addProject(tree: Tree, options: NormalizedOptions): void {
 
   const project = readProjectConfiguration(tree, options.projectName);
   project.targets.build = {
-    executor: '@nrwl/node:package',
+    executor: '@nx/js:tsc',
     outputs: ['{options.outputPath}'],
     options: {
-      outputPath: `dist/${getWorkspaceLayout(tree).libsDir}/${
-        options.projectDirectory
-      }`,
+      outputPath: `dist/${options.projectRoot}`,
       tsConfig: `${options.projectRoot}/tsconfig.lib.json`,
       packageJson: `${options.projectRoot}/package.json`,
       main: `${options.projectRoot}/src/index.ts`,

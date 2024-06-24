@@ -1,112 +1,179 @@
 import {
   addProjectConfiguration,
-  convertNxGenerator,
+  ensurePackage,
   formatFiles,
   generateFiles,
   GeneratorCallback,
-  getWorkspaceLayout,
   joinPathFragments,
   names,
   offsetFromRoot,
-  TargetConfiguration,
+  ProjectConfiguration,
+  runTasksInSerial,
   toJS,
   Tree,
   updateJson,
-} from '@nrwl/devkit';
-import { runTasksInSerial } from '@nrwl/workspace/src/utilities/run-tasks-in-serial';
+  updateProjectConfiguration,
+} from '@nx/devkit';
+
+import {
+  addTsConfigPath,
+  getRelativePathToRootTsConfig,
+  initGenerator as jsInitGenerator,
+} from '@nx/js';
 import init from '../init/init';
 import { addLinting } from '../../utils/add-linting';
 import { addJest } from '../../utils/add-jest';
+import {
+  nxVersion,
+  reactNativeVersion,
+  reactVersion,
+} from '../../utils/versions';
 import { NormalizedSchema, normalizeOptions } from './lib/normalize-options';
 import { Schema } from './schema';
+import { ensureDependencies } from '../../utils/ensure-dependencies';
+import { logShowProjectCommand } from '@nx/devkit/src/utils/log-show-project-command';
 
 export async function reactNativeLibraryGenerator(
   host: Tree,
   schema: Schema
 ): Promise<GeneratorCallback> {
-  const options = normalizeOptions(host, schema);
+  return await reactNativeLibraryGeneratorInternal(host, {
+    addPlugin: false,
+    projectNameAndRootFormat: 'derived',
+    ...schema,
+  });
+}
+
+export async function reactNativeLibraryGeneratorInternal(
+  host: Tree,
+  schema: Schema
+): Promise<GeneratorCallback> {
+  const options = await normalizeOptions(host, schema);
   if (options.publishable === true && !schema.importPath) {
     throw new Error(
       `For publishable libs you have to provide a proper "--importPath" which needs to be a valid npm package name (e.g. my-awesome-lib or @myorg/my-lib)`
     );
   }
 
-  addProject(host, options);
+  const tasks: GeneratorCallback[] = [];
+
+  const jsInitTask = await jsInitGenerator(host, {
+    ...schema,
+    skipFormat: true,
+  });
+  tasks.push(jsInitTask);
+  const initTask = await init(host, { ...options, skipFormat: true });
+  tasks.push(initTask);
+
+  if (!options.skipPackageJson) {
+    tasks.push(ensureDependencies(host));
+  }
+
+  const addProjectTask = await addProject(host, options);
+  if (addProjectTask) {
+    tasks.push(addProjectTask);
+  }
+
   createFiles(host, options);
 
-  const initTask = await init(host, {
+  const lintTask = await addLinting(host, {
     ...options,
-    skipFormat: true,
-    e2eTestRunner: 'none',
+    projectName: options.name,
+    tsConfigPaths: [
+      joinPathFragments(options.projectRoot, 'tsconfig.lib.json'),
+    ],
   });
-
-  const lintTask = await addLinting(
-    host,
-    options.name,
-    options.projectRoot,
-    [joinPathFragments(options.projectRoot, 'tsconfig.lib.json')],
-    options.linter,
-    options.setParserOptionsProject
-  );
-
-  if (!options.skipTsConfig) {
-    updateBaseTsConfig(host, options);
-  }
+  tasks.push(lintTask);
 
   const jestTask = await addJest(
     host,
     options.unitTestRunner,
     options.name,
     options.projectRoot,
-    options.js
+    options.js,
+    options.skipPackageJson,
+    options.addPlugin
   );
+  tasks.push(jestTask);
 
   if (options.publishable || options.buildable) {
     updateLibPackageNpmScope(host, options);
+  }
+
+  if (!options.skipTsConfig) {
+    addTsConfigPath(host, options.importPath, [
+      joinPathFragments(
+        options.projectRoot,
+        './src',
+        'index.' + (options.js ? 'js' : 'ts')
+      ),
+    ]);
   }
 
   if (!options.skipFormat) {
     await formatFiles(host);
   }
 
-  return runTasksInSerial(initTask, lintTask, jestTask);
+  tasks.push(() => {
+    logShowProjectCommand(options.name);
+  });
+
+  return runTasksInSerial(...tasks);
 }
 
-function addProject(host: Tree, options: NormalizedSchema) {
-  const targets: { [key: string]: TargetConfiguration } = {};
-
-  if (options.publishable || options.buildable) {
-    const { libsDir } = getWorkspaceLayout(host);
-    const external = ['react/jsx-runtime'];
-
-    targets.build = {
-      executor: '@nrwl/web:rollup',
-      outputs: ['{options.outputPath}'],
-      options: {
-        outputPath: `dist/${libsDir}/${options.projectDirectory}`,
-        tsConfig: `${options.projectRoot}/tsconfig.lib.json`,
-        project: `${options.projectRoot}/package.json`,
-        entryFile: maybeJs(options, `${options.projectRoot}/src/index.ts`),
-        external,
-        rollupConfig: `@nrwl/react/plugins/bundle-rollup`,
-        assets: [
-          {
-            glob: `${options.projectRoot}/README.md`,
-            input: '.',
-            output: '.',
-          },
-        ],
-      },
-    };
-  }
-
-  addProjectConfiguration(host, options.name, {
+async function addProject(
+  host: Tree,
+  options: NormalizedSchema
+): Promise<GeneratorCallback> {
+  const project: ProjectConfiguration = {
     root: options.projectRoot,
     sourceRoot: joinPathFragments(options.projectRoot, 'src'),
     projectType: 'library',
     tags: options.parsedTags,
-    targets,
+    targets: {},
+  };
+
+  addProjectConfiguration(host, options.name, project);
+
+  if (!options.publishable && !options.buildable) {
+    return () => {};
+  }
+
+  const { configurationGenerator } = ensurePackage<typeof import('@nx/rollup')>(
+    '@nx/rollup',
+    nxVersion
+  );
+  const rollupConfigTask = await configurationGenerator(host, {
+    ...options,
+    project: options.name,
+    skipFormat: true,
   });
+
+  const external = ['react/jsx-runtime', 'react-native', 'react', 'react-dom'];
+
+  project.targets.build = {
+    executor: '@nx/rollup:rollup',
+    outputs: ['{options.outputPath}'],
+    options: {
+      outputPath: `dist/${options.projectRoot}`,
+      tsConfig: `${options.projectRoot}/tsconfig.lib.json`,
+      project: `${options.projectRoot}/package.json`,
+      entryFile: maybeJs(options, `${options.projectRoot}/src/index.ts`),
+      external,
+      rollupConfig: `@nx/react/plugins/bundle-rollup`,
+      assets: [
+        {
+          glob: `${options.projectRoot}/README.md`,
+          input: '.',
+          output: '.',
+        },
+      ],
+    },
+  };
+
+  updateProjectConfiguration(host, options.name, project);
+
+  return rollupConfigTask;
 }
 
 function updateTsConfig(tree: Tree, options: NormalizedSchema) {
@@ -129,31 +196,6 @@ function updateTsConfig(tree: Tree, options: NormalizedSchema) {
   );
 }
 
-function updateBaseTsConfig(host: Tree, options: NormalizedSchema) {
-  updateJson(host, 'tsconfig.base.json', (json) => {
-    const c = json.compilerOptions;
-    c.paths = c.paths || {};
-    delete c.paths[options.name];
-
-    if (c.paths[options.importPath]) {
-      throw new Error(
-        `You already have a library using the import path "${options.importPath}". Make sure to specify a unique one.`
-      );
-    }
-
-    const { libsDir } = getWorkspaceLayout(host);
-
-    c.paths[options.importPath] = [
-      maybeJs(
-        options,
-        joinPathFragments(libsDir, `${options.projectDirectory}/src/index.ts`)
-      ),
-    ];
-
-    return json;
-  });
-}
-
 function createFiles(host: Tree, options: NormalizedSchema) {
   generateFiles(
     host,
@@ -162,8 +204,11 @@ function createFiles(host: Tree, options: NormalizedSchema) {
     {
       ...options,
       ...names(options.name),
-      tmpl: '',
       offsetFromRoot: offsetFromRoot(options.projectRoot),
+      rootTsConfigPath: getRelativePathToRootTsConfig(
+        host,
+        options.projectRoot
+      ),
     }
   );
 
@@ -181,6 +226,10 @@ function createFiles(host: Tree, options: NormalizedSchema) {
 function updateLibPackageNpmScope(host: Tree, options: NormalizedSchema) {
   return updateJson(host, `${options.projectRoot}/package.json`, (json) => {
     json.name = options.importPath;
+    json.peerDependencies = {
+      react: reactVersion,
+      'react-native': reactNativeVersion,
+    };
     return json;
   });
 }
@@ -192,6 +241,3 @@ function maybeJs(options: NormalizedSchema, path: string): string {
 }
 
 export default reactNativeLibraryGenerator;
-export const reactNativeLibrarySchematic = convertNxGenerator(
-  reactNativeLibraryGenerator
-);

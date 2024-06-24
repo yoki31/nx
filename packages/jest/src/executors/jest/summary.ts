@@ -85,15 +85,19 @@ export const getSummary = (
   }
 ): string => {
   let runTime = (Date.now() - aggregatedResults.startTime) / 1000;
-  if (options && options.roundTime) {
+  if (options?.roundTime) {
     runTime = Math.floor(runTime);
   }
 
-  const valuesForCurrentTestCases = getValuesCurrentTestCases(
-    options?.currentTestCases
-  );
+  const {
+    numFailingTests,
+    numPendingTests,
+    numTodoTests,
+    numPassingTests,
+    numTotalTests,
+  } = getValuesCurrentTestCases(options?.currentTestCases);
 
-  const estimatedTime = (options && options.estimatedTime) || 0;
+  const estimatedTime = options?.estimatedTime || 0;
   const snapshotResults = aggregatedResults.snapshot;
   const snapshotsAdded = snapshotResults.added;
   const snapshotsFailed = snapshotResults.unmatched;
@@ -113,7 +117,7 @@ export const getSummary = (
   const testsPending = aggregatedResults.numPendingTests;
   const testsTodo = aggregatedResults.numTodoTests;
   const testsTotal = aggregatedResults.numTotalTests;
-  const width = (options && options.width) || 0;
+  const width = options?.width || 0;
 
   const suites =
     chalk.bold('Test Suites: ') +
@@ -127,15 +131,11 @@ export const getSummary = (
       : suitesTotal) +
     ` total`;
 
-  const updatedTestsFailed =
-    testsFailed + valuesForCurrentTestCases.numFailingTests;
-  const updatedTestsPending =
-    testsPending + valuesForCurrentTestCases.numPendingTests;
-  const updatedTestsTodo = testsTodo + valuesForCurrentTestCases.numTodoTests;
-  const updatedTestsPassed =
-    testsPassed + valuesForCurrentTestCases.numPassingTests;
-  const updatedTestsTotal =
-    testsTotal + valuesForCurrentTestCases.numTotalTests;
+  const updatedTestsFailed = testsFailed + numFailingTests;
+  const updatedTestsPending = testsPending + numPendingTests;
+  const updatedTestsTodo = testsTodo + numTodoTests;
+  const updatedTestsPassed = testsPassed + numPassingTests;
+  const updatedTestsTotal = testsTotal + numTotalTests;
 
   const tests =
     chalk.bold('Tests:       ') +

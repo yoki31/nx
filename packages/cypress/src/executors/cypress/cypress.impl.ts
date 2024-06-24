@@ -1,14 +1,9 @@
-import 'dotenv/config';
-import { basename, dirname, join } from 'path';
+import { ExecutorContext, logger, stripIndents } from '@nx/devkit';
+import { existsSync, readdirSync, unlinkSync } from 'fs';
+import { basename, dirname } from 'path';
+import { getTempTailwindPath } from '../../utils/ct-helpers';
 import { installedCypressVersion } from '../../utils/cypress-version';
-import {
-  ExecutorContext,
-  logger,
-  parseTargetString,
-  readTargetOptions,
-  runExecutor,
-  stripIndents,
-} from '@nrwl/devkit';
+import { startDevServer } from '../../utils/start-dev-server';
 
 const Cypress = require('cypress'); // @NOTE: Importing via ES6 messes the whole test dependencies.
 
@@ -17,9 +12,11 @@ export type Json = { [k: string]: any };
 export interface CypressExecutorOptions extends Json {
   cypressConfig: string;
   watch?: boolean;
-  tsConfig?: string;
   devServerTarget?: string;
   headed?: boolean;
+  /**
+   * @deprecated use watch instead
+   **/
   headless?: boolean;
   exit?: boolean;
   key?: string;
@@ -29,15 +26,27 @@ export interface CypressExecutorOptions extends Json {
   browser?: string;
   env?: Record<string, string>;
   spec?: string;
+  /**
+   * @deprecated no longer used since cypress supports typescript out of the box
+   **/
   copyFiles?: string;
-  ciBuildId?: string;
+  ciBuildId?: string | number;
   group?: string;
-  ignoreTestFiles?: string;
+  ignoreTestFiles?: string | string[];
   reporter?: string;
-  reporterOptions?: string;
+  reporterOptions?: string | Json;
   skipServe?: boolean;
   testingType?: 'component' | 'e2e';
   tag?: string;
+  port?: number | 'cypress-auto';
+  quiet?: boolean;
+  runnerUi?: boolean;
+  autoCancelAfterFailures?: boolean | number;
+}
+
+interface NormalizedCypressExecutorOptions extends CypressExecutorOptions {
+  ctTailwindPath?: string;
+  portLockFilePath?: string;
 }
 
 export default async function cypressExecutor(
@@ -45,11 +54,16 @@ export default async function cypressExecutor(
   context: ExecutorContext
 ) {
   options = normalizeOptions(options, context);
-
+  // this is used by cypress component testing presets to build the executor contexts with the correct configuration options.
+  process.env.NX_CYPRESS_TARGET_CONFIGURATION = context.configurationName;
   let success;
-  for await (const baseUrl of startDevServer(options, context)) {
+
+  for await (const devServerValues of startDevServer(options, context)) {
     try {
-      success = await runCypress(baseUrl, options);
+      success = await runCypress(devServerValues.baseUrl, {
+        ...options,
+        portLockFilePath: devServerValues.portLockFilePath,
+      });
       if (!options.watch) break;
     } catch (e) {
       logger.error(e.message);
@@ -64,15 +78,17 @@ export default async function cypressExecutor(
 function normalizeOptions(
   options: CypressExecutorOptions,
   context: ExecutorContext
-) {
+): NormalizedCypressExecutorOptions {
   options.env = options.env || {};
-  if (options.tsConfig) {
-    const tsConfigPath = join(context.root, options.tsConfig);
-    options.env.tsConfig = tsConfigPath;
-    process.env.TS_NODE_PROJECT = tsConfigPath;
+  if (options.testingType === 'component') {
+    const project = context?.projectGraph?.nodes?.[context.projectName];
+    if (project?.data?.root) {
+      options.ctTailwindPath = getTempTailwindPath(context);
+    }
   }
   checkSupportedBrowser(options);
   warnDeprecatedHeadless(options);
+  warnDeprecatedCypressVersion();
   return options;
 }
 
@@ -120,40 +136,13 @@ function warnDeprecatedHeadless({ headless }: CypressExecutorOptions) {
   }
 }
 
-async function* startDevServer(
-  opts: CypressExecutorOptions,
-  context: ExecutorContext
-) {
-  // no dev server, return the provisioned base url
-  if (!opts.devServerTarget || opts.skipServe) {
-    yield opts.baseUrl;
-    return;
-  }
-
-  const { project, target, configuration } = parseTargetString(
-    opts.devServerTarget
-  );
-  const devServerTargetOpts = readTargetOptions(
-    { project, target, configuration },
-    context
-  );
-  const targetSupportsWatchOpt =
-    Object.keys(devServerTargetOpts).includes('watch');
-
-  for await (const output of await runExecutor<{
-    success: boolean;
-    baseUrl?: string;
-  }>(
-    { project, target, configuration },
-    // @NOTE: Do not forward watch option if not supported by the target dev server,
-    // this is relevant for running Cypress against dev server target that does not support this option,
-    // for instance @nguniversal/builders:ssr-dev-server.
-    targetSupportsWatchOpt ? { watch: opts.watch } : {},
-    context
-  )) {
-    if (!output.success && !opts.watch)
-      throw new Error('Could not compile application files');
-    yield opts.baseUrl || (output.baseUrl as string);
+function warnDeprecatedCypressVersion() {
+  if (installedCypressVersion() < 10) {
+    logger.warn(stripIndents`
+NOTE:
+Support for Cypress versions < 10 is deprecated. Please upgrade to at least Cypress version 10.
+A generator to migrate from v8 to v10 is provided. See https://nx.dev/cypress/v10-migration-guide
+`);
   }
 }
 
@@ -162,14 +151,17 @@ async function* startDevServer(
  * By default, Cypress will run tests from the CLI without the GUI and provide directly the results in the console output.
  * If `watch` is `true`: Open Cypress in the interactive GUI to interact directly with the application.
  */
-async function runCypress(baseUrl: string, opts: CypressExecutorOptions) {
-  // Cypress expects the folder where a `cypress.json` is present
+async function runCypress(
+  baseUrl: string,
+  opts: NormalizedCypressExecutorOptions
+) {
+  const cypressVersion = installedCypressVersion();
+  // Cypress expects the folder where a cypress config is present
   const projectFolderPath = dirname(opts.cypressConfig);
   const options: any = {
     project: projectFolderPath,
     configFile: basename(opts.cypressConfig),
   };
-
   // If not, will use the `baseUrl` normally from `cypress.json`
   if (baseUrl) {
     options.config = { baseUrl };
@@ -180,7 +172,10 @@ async function runCypress(baseUrl: string, opts: CypressExecutorOptions) {
   }
 
   if (opts.env) {
-    options.env = opts.env;
+    options.env = {
+      ...options.env,
+      ...opts.env,
+    };
   }
   if (opts.spec) {
     options.spec = opts.spec;
@@ -189,20 +184,58 @@ async function runCypress(baseUrl: string, opts: CypressExecutorOptions) {
   options.tag = opts.tag;
   options.exit = opts.exit;
   options.headed = opts.headed;
-  options.headless = opts.headless;
+  options.runnerUi = opts.runnerUi;
+
+  if (opts.headless) {
+    options.headless = opts.headless;
+  }
+
   options.record = opts.record;
   options.key = opts.key;
   options.parallel = opts.parallel;
-  options.ciBuildId = opts.ciBuildId;
+  options.ciBuildId = opts.ciBuildId?.toString();
   options.group = opts.group;
-  options.ignoreTestFiles = opts.ignoreTestFiles;
-  options.reporter = opts.reporter;
-  options.reporterOptions = opts.reporterOptions;
+  // renamed in cy 10
+  if (cypressVersion >= 10) {
+    options.config ??= {};
+    options.config[opts.testingType] = {
+      excludeSpecPattern: opts.ignoreTestFiles,
+    };
+  } else {
+    options.ignoreTestFiles = opts.ignoreTestFiles;
+  }
+
+  if (opts.reporter) {
+    options.reporter = opts.reporter;
+  }
+
+  if (opts.reporterOptions) {
+    options.reporterOptions = opts.reporterOptions;
+  }
+  if (opts.quiet) {
+    options.quiet = opts.quiet;
+  }
+
+  if (opts.autoCancelAfterFailures !== undefined) {
+    options.autoCancelAfterFailures = opts.autoCancelAfterFailures;
+  }
+
   options.testingType = opts.testingType;
 
   const result = await (opts.watch
     ? Cypress.open(options)
     : Cypress.run(options));
+
+  cleanupTmpFile(opts.ctTailwindPath);
+  cleanupTmpFile(opts.portLockFilePath);
+
+  if (process.env.NX_VERBOSE_LOGGING === 'true' && opts.portLockFilePath) {
+    readdirSync(dirname(opts.portLockFilePath)).forEach((f) => {
+      if (f.endsWith('.txt')) {
+        logger.debug(`Lock file ${f} still present`);
+      }
+    });
+  }
 
   /**
    * `cypress.open` is returning `0` and is not of the same type as `cypress.run`.
@@ -210,4 +243,15 @@ async function runCypress(baseUrl: string, opts: CypressExecutorOptions) {
    * working. Forcing the build to success when `cypress.open` is used.
    */
   return !result.totalFailed && !result.failures;
+}
+
+function cleanupTmpFile(path: string) {
+  try {
+    if (path && existsSync(path)) {
+      unlinkSync(path);
+    }
+    return true;
+  } catch (err) {
+    return false;
+  }
 }

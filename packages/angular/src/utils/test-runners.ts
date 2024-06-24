@@ -1,10 +1,10 @@
-export const enum UnitTestRunner {
-  Karma = 'karma',
+export enum UnitTestRunner {
   Jest = 'jest',
   None = 'none',
 }
-export const enum E2eTestRunner {
-  Protractor = 'protractor',
+
+export enum E2eTestRunner {
   Cypress = 'cypress',
+  Playwright = 'playwright',
   None = 'none',
 }

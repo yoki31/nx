@@ -1,53 +1,27 @@
-import type { Tree } from '@nrwl/devkit';
+import type { Tree } from '@nx/devkit';
+import { formatFiles } from '@nx/devkit';
+import { componentGenerator } from '../component/component';
+import { exportScam } from '../utils/export-scam';
+import { convertComponentToScam, normalizeOptions } from './lib';
 import type { Schema } from './schema';
-import { wrapAngularDevkitSchematic } from '@nrwl/devkit/ngcli-adapter';
-import {
-  formatFiles,
-  readWorkspaceConfiguration,
-  readProjectConfiguration,
-  normalizePath,
-} from '@nrwl/devkit';
-import { createScam } from './lib/create-module';
-import { normalize } from 'path';
 
-export async function scamGenerator(tree: Tree, schema: Schema) {
-  const { inlineScam, ...options } = schema;
-
-  checkPathUnderProjectRoot(tree, options);
-
-  const angularComponentSchematic = wrapAngularDevkitSchematic(
-    '@schematics/angular',
-    'component'
-  );
-  await angularComponentSchematic(tree, {
+export async function scamGenerator(tree: Tree, rawOptions: Schema) {
+  const options = await normalizeOptions(tree, rawOptions);
+  await componentGenerator(tree, {
     ...options,
     skipImport: true,
     export: false,
+    standalone: false,
+    skipFormat: true,
+    // options are already normalize, use them as is
+    nameAndDirectoryFormat: 'as-provided',
   });
 
-  createScam(tree, schema);
+  convertComponentToScam(tree, options);
+  exportScam(tree, options);
 
-  await formatFiles(tree);
-}
-
-function checkPathUnderProjectRoot(tree: Tree, options: Partial<Schema>) {
-  if (!options.path) {
-    return;
-  }
-
-  const project =
-    options.project ?? readWorkspaceConfiguration(tree).defaultProject;
-  const { root } = readProjectConfiguration(tree, project);
-
-  let pathToComponent = normalizePath(options.path);
-  pathToComponent = pathToComponent.startsWith('/')
-    ? pathToComponent.slice(1)
-    : pathToComponent;
-
-  if (!pathToComponent.startsWith(normalize(root))) {
-    throw new Error(
-      `The path provided for the SCAM (${options.path}) does not exist under the project root (${root}).`
-    );
+  if (!options.skipFormat) {
+    await formatFiles(tree);
   }
 }
 

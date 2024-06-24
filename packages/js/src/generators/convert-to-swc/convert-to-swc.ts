@@ -1,15 +1,16 @@
 import {
-  convertNxGenerator,
+  addDependenciesToPackageJson,
   installPackagesTask,
   ProjectConfiguration,
   readJson,
   readProjectConfiguration,
   Tree,
   updateProjectConfiguration,
-} from '@nrwl/devkit';
+} from '@nx/devkit';
 import { join } from 'path';
 import { addSwcConfig } from '../../utils/swc/add-swc-config';
 import { addSwcDependencies } from '../../utils/swc/add-swc-dependencies';
+import { swcHelpersVersion } from '../../utils/versions';
 import { ConvertToSwcGeneratorSchema } from './schema';
 
 export async function convertToSwcGenerator(
@@ -25,7 +26,6 @@ export async function convertToSwcGenerator(
     options.project,
     options.targets
   );
-
   return checkSwcDependencies(tree, projectConfiguration);
 }
 
@@ -49,9 +49,13 @@ function updateProjectBuildTargets(
 ) {
   for (const target of projectTargets) {
     const targetConfiguration = projectConfiguration.targets[target];
-    if (!targetConfiguration || targetConfiguration.executor !== '@nrwl/js:tsc')
+    if (
+      !targetConfiguration ||
+      (targetConfiguration.executor !== '@nx/js:tsc' &&
+        targetConfiguration.executor !== '@nrwl/js:tsc')
+    )
       continue;
-    targetConfiguration.executor = '@nrwl/js:swc';
+    targetConfiguration.executor = '@nx/js:swc';
   }
 
   updateProjectConfiguration(tree, projectName, projectConfiguration);
@@ -64,10 +68,20 @@ function checkSwcDependencies(
   const isSwcrcPresent = tree.exists(join(projectConfiguration.root, '.swcrc'));
 
   const packageJson = readJson(tree, 'package.json');
+  const projectPackageJsonPath = join(
+    projectConfiguration.root,
+    'package.json'
+  );
+  const projectPackageJson = readJson(tree, projectPackageJsonPath);
+
   const hasSwcDependency =
     packageJson.dependencies && packageJson.dependencies['@swc/core'];
 
-  if (isSwcrcPresent && hasSwcDependency) return;
+  const hasSwcHelpers =
+    projectPackageJson.dependencies &&
+    projectPackageJson.dependencies['@swc/helpers'];
+
+  if (isSwcrcPresent && hasSwcDependency && hasSwcHelpers) return;
 
   if (!isSwcrcPresent) {
     addSwcConfig(tree, projectConfiguration.root);
@@ -75,6 +89,15 @@ function checkSwcDependencies(
 
   if (!hasSwcDependency) {
     addSwcDependencies(tree);
+  }
+
+  if (!hasSwcHelpers) {
+    addDependenciesToPackageJson(
+      tree,
+      { '@swc/helpers': swcHelpersVersion },
+      {},
+      projectPackageJsonPath
+    );
   }
 
   return () => {
@@ -85,4 +108,3 @@ function checkSwcDependencies(
 }
 
 export default convertToSwcGenerator;
-export const convertToSwcSchematic = convertNxGenerator(convertToSwcGenerator);

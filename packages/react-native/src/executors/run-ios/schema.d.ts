@@ -1,13 +1,7 @@
-// part of options form https://github.com/react-native-community/cli/blob/master/packages/platform-ios/src/commands/runIOS/index.ts#L541
-export interface ReactNativeRunIosOptions {
-  xcodeConfiguration: string;
-  port: number;
-  scheme: string;
-  simulator: string;
-  device: string;
-  packager: boolean;
-  install?: boolean;
-  sync?: boolean;
-  terminal?: string;
-  resetCache?: boolean;
+import { ReactNativeBuildIosOptions } from '../build-ios/schema';
+import { ReactNativeStartOptions } from '../start/schema';
+
+// part of options form https://github.com/react-native-community/cli/blob/main/packages/cli-platform-ios/src/commands/runIOS/index.ts
+export interface ReactNativeRunIosOptions extends ReactNativeBuildIosOptions {
+  binaryPath?: string;
 }

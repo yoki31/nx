@@ -1,22 +1,12 @@
 {
-  "root": "packages/nest",
+  "name": "nest",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
   "sourceRoot": "packages/nest",
   "projectType": "library",
   "targets": {
-    "test": {
-      "executor": "@nrwl/jest:jest",
-      "options": {
-        "jestConfig": "packages/nest/jest.config.js",
-        "passWithNoTests": true
-      },
-      "outputs": ["coverage/packages/nest"]
-    },
     "build-base": {
-      "executor": "@nrwl/js:tsc",
+      "executor": "@nx/js:tsc",
       "options": {
-        "outputPath": "build/packages/nest",
-        "tsConfig": "packages/nest/tsconfig.lib.json",
-        "main": "packages/nest/index.ts",
         "assets": [
           {
             "input": "packages/nest",
@@ -31,7 +21,7 @@
           {
             "input": "packages/nest",
             "glob": "**/*.json",
-            "ignore": ["**/tsconfig*.json", "project.json"],
+            "ignore": ["**/tsconfig*.json", "project.json", ".eslintrc.json"],
             "output": "/"
           },
           {
@@ -45,33 +35,24 @@
             "glob": "**/*.d.ts",
             "output": "/"
           },
-          "LICENSE"
+          {
+            "input": "",
+            "glob": "LICENSE",
+            "output": "/"
+          }
         ]
-      },
-      "outputs": ["{options.outputPath}"]
+      }
     },
     "build": {
-      "executor": "@nrwl/workspace:run-commands",
-      "outputs": ["build/packages/nest"],
+      "executor": "nx:run-commands",
+      "outputs": ["{workspaceRoot}/build/packages/nest"],
       "options": {
         "command": "node ./scripts/copy-readme.js nest"
       }
     },
-    "lint": {
-      "executor": "@nrwl/linter:eslint",
-      "options": {
-        "lintFilePatterns": [
-          "packages/nest/**/*.ts",
-          "packages/nest/**/*.spec.ts",
-          "packages/nest/**/*_spec.ts",
-          "packages/nest/**/*.spec.tsx",
-          "packages/nest/**/*.spec.js",
-          "packages/nest/**/*.spec.jsx",
-          "packages/nest/**/*.d.ts"
-        ]
-      },
-      "outputs": ["{options.outputFile}"]
+    "add-extra-dependencies": {
+      "command": "node ./scripts/add-dependency-to-build.js nest @nrwl/nest"
     }
   },
-  "implicitDependencies": ["node", "linter"]
+  "implicitDependencies": ["node", "eslint"]
 }

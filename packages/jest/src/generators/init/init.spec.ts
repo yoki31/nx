@@ -1,96 +1,86 @@
-import { readJson, Tree, writeJson } from '@nrwl/devkit';
-import { createTreeWithEmptyWorkspace } from '@nrwl/devkit/testing';
+import 'nx/src/internal-testing-utils/mock-project-graph';
+
+import {
+  type NxJsonConfiguration,
+  readJson,
+  type Tree,
+  updateJson,
+} from '@nx/devkit';
+import { createTreeWithEmptyWorkspace } from '@nx/devkit/testing';
 import { jestInitGenerator } from './init';
+import { JestInitSchema } from './schema';
 
 describe('jest', () => {
   let tree: Tree;
+  let options: JestInitSchema;
 
   beforeEach(() => {
-    tree = createTreeWithEmptyWorkspace();
+    tree = createTreeWithEmptyWorkspace({ layout: 'apps-libs' });
+    options = {
+      addPlugin: true,
+    };
   });
 
-  it('should generate files', async () => {
-    jestInitGenerator(tree, {});
+  it('should exclude jest files from production fileset', async () => {
+    updateJson<NxJsonConfiguration>(tree, 'nx.json', (json) => {
+      json.namedInputs ??= {};
+      json.namedInputs.production = ['default'];
+      return json;
+    });
 
-    expect(tree.exists('jest.config.js')).toBeTruthy();
-    expect(tree.read('jest.config.js', 'utf-8')).toMatchInlineSnapshot(`
-      "const { getJestProjects } = require('@nrwl/jest');
-      
-      module.exports = {
-      projects: getJestProjects()
-      };"
-    `);
+    await jestInitGenerator(tree, options);
+
+    const productionFileSet = readJson<NxJsonConfiguration>(tree, 'nx.json')
+      .namedInputs.production;
+    const jestDefaults = readJson<NxJsonConfiguration>(tree, 'nx.json')
+      .targetDefaults['@nx/jest:jest'];
+    expect(productionFileSet).toContain(
+      '!{projectRoot}/**/?(*.)+(spec|test).[jt]s?(x)?(.snap)'
+    );
+    expect(productionFileSet).toContain('!{projectRoot}/tsconfig.spec.json');
+    expect(productionFileSet).toContain('!{projectRoot}/jest.config.[jt]s');
+    expect(productionFileSet).toContain('!{projectRoot}/src/test-setup.[jt]s');
   });
 
-  it('should not override existing files', async () => {
-    tree.write('jest.config.js', `test`);
-    jestInitGenerator(tree, {});
-    expect(tree.read('jest.config.js', 'utf-8')).toEqual('test');
+  it('should not alter target defaults if jest.preset.js already exists', async () => {
+    updateJson<NxJsonConfiguration>(tree, 'nx.json', (json) => {
+      json.namedInputs ??= {};
+      json.namedInputs.production = ['default', '^production'];
+      return json;
+    });
+    await jestInitGenerator(tree, options);
+    let nxJson: NxJsonConfiguration;
+    updateJson<NxJsonConfiguration>(tree, 'nx.json', (json) => {
+      json.namedInputs ??= {};
+      json.namedInputs.production = [
+        'default',
+        '^production',
+        '!{projectRoot}/**/?(*.)+(spec|test).[jt]s?(x)?(.snap)',
+        '!{projectRoot}/**/*.md',
+      ];
+      json.targetDefaults.test = {
+        inputs: [
+          'default',
+          '^production',
+          '{workspaceRoot}/jest.preset.js',
+          '{workspaceRoot}/testSetup.ts',
+        ],
+      };
+      nxJson = json;
+      return json;
+    });
+    tree.write('jest.preset.js', '');
+
+    await jestInitGenerator(tree, options);
+
+    expect(readJson<NxJsonConfiguration>(tree, 'nx.json')).toEqual(nxJson);
   });
 
   it('should add dependencies', async () => {
-    jestInitGenerator(tree, {});
+    await jestInitGenerator(tree, options);
+
     const packageJson = readJson(tree, 'package.json');
     expect(packageJson.devDependencies.jest).toBeDefined();
-    expect(packageJson.devDependencies['@nrwl/jest']).toBeDefined();
-    expect(packageJson.devDependencies['@types/jest']).toBeDefined();
-    expect(packageJson.devDependencies['ts-jest']).toBeDefined();
-  });
-
-  describe('Deprecated: --babelJest', () => {
-    it('should add babel dependencies', async () => {
-      jestInitGenerator(tree, { babelJest: true });
-      const packageJson = readJson(tree, 'package.json');
-      expect(packageJson.devDependencies['babel-jest']).toBeDefined();
-    });
-  });
-
-  describe('--compiler', () => {
-    it('should support tsc compiler', () => {
-      jestInitGenerator(tree, { compiler: 'tsc' });
-      const packageJson = readJson(tree, 'package.json');
-      expect(packageJson.devDependencies['ts-jest']).toBeDefined();
-    });
-
-    it('should support babel compiler', () => {
-      jestInitGenerator(tree, { compiler: 'babel' });
-      const packageJson = readJson(tree, 'package.json');
-      expect(packageJson.devDependencies['babel-jest']).toBeDefined();
-    });
-
-    // it('should support swc compiler', () => {
-    //   jestInitGenerator(tree, { compiler: 'swc' });
-    //   const packageJson = readJson(tree, 'package.json');
-    //   expect(packageJson.devDependencies['@swc/jest']).toBeDefined()
-    // });
-  });
-
-  describe('adds jest extension', () => {
-    beforeEach(async () => {
-      writeJson(tree, '.vscode/extensions.json', {
-        recommendations: [
-          'nrwl.angular-console',
-          'angular.ng-template',
-          'dbaeumer.vscode-eslint',
-          'esbenp.prettier-vscode',
-        ],
-      });
-    });
-
-    it('should add the jest extension to the recommended property', async () => {
-      jestInitGenerator(tree, {});
-      const extensionsJson = readJson(tree, '.vscode/extensions.json');
-      expect(extensionsJson).toMatchInlineSnapshot(`
-        Object {
-          "recommendations": Array [
-            "nrwl.angular-console",
-            "angular.ng-template",
-            "dbaeumer.vscode-eslint",
-            "esbenp.prettier-vscode",
-            "firsttris.vscode-jest-runner",
-          ],
-        }
-      `);
-    });
+    expect(packageJson.devDependencies['@nx/jest']).toBeDefined();
   });
 });

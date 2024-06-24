@@ -1,8 +1,7 @@
-import { Linter } from '@nrwl/linter';
-import { E2eTestRunner, UnitTestRunner } from '../../utils/test-runners';
+import type { ProjectNameAndRootFormat } from '@nx/devkit/src/generators/project-name-and-root-utils';
+import type { Linter } from '@nx/eslint';
+import type { E2eTestRunner, UnitTestRunner } from '../../utils/test-runners';
 import type { Styles } from '../utils/types';
-
-type AngularLinter = Exclude<Linter, Linter.TsLint>;
 
 export interface Schema {
   name: string;
@@ -16,17 +15,20 @@ export interface Schema {
   style?: Styles;
   skipTests?: boolean;
   directory?: string;
+  projectNameAndRootFormat?: ProjectNameAndRootFormat;
   tags?: string;
-  linter?: AngularLinter;
+  linter?: Linter;
   unitTestRunner?: UnitTestRunner;
   e2eTestRunner?: E2eTestRunner;
   backendProject?: string;
   strict?: boolean;
   standaloneConfig?: boolean;
-  mfe?: boolean;
-  mfeType?: 'host' | 'remote';
-  remotes?: string[];
   port?: number;
-  host?: string;
   setParserOptionsProject?: boolean;
+  skipPackageJson?: boolean;
+  standalone?: boolean;
+  rootProject?: boolean;
+  minimal?: boolean;
+  bundler?: 'webpack' | 'esbuild';
+  ssr?: boolean;
 }

@@ -1,14 +1,16 @@
-import { readProjectConfiguration, Tree } from '@nrwl/devkit';
-import { createTreeWithEmptyWorkspace } from '@nrwl/devkit/testing';
+import 'nx/src/internal-testing-utils/mock-project-graph';
+
+import { readProjectConfiguration, Tree } from '@nx/devkit';
+import { createTreeWithEmptyWorkspace } from '@nx/devkit/testing';
 import { join } from 'path';
-import { GeneratorSchema } from '../../utils/schema';
-import { libraryGenerator } from '../library/library';
+import { LibraryGeneratorSchema } from '../../utils/schema';
+import { libraryGenerator as jsLibraryGenerator } from '../library/library';
 import { convertToSwcGenerator } from './convert-to-swc';
 
 describe('convert to swc', () => {
   let tree: Tree;
 
-  const defaultLibGenerationOptions: Omit<GeneratorSchema, 'name'> = {
+  const defaultLibGenerationOptions: Omit<LibraryGeneratorSchema, 'name'> = {
     skipTsConfig: false,
     unitTestRunner: 'jest',
     skipFormat: false,
@@ -18,34 +20,40 @@ describe('convert to swc', () => {
     pascalCaseFiles: false,
     strict: true,
     config: 'project',
-    compiler: 'tsc',
+    bundler: 'tsc',
   };
 
   beforeAll(() => {
-    tree = createTreeWithEmptyWorkspace(2);
+    tree = createTreeWithEmptyWorkspace();
+    tree.write('/.gitignore', '');
+    tree.write('/.gitignore', '');
   });
 
   it('should convert tsc to swc', async () => {
-    await libraryGenerator(tree, {
+    await jsLibraryGenerator(tree, {
       ...defaultLibGenerationOptions,
       name: 'tsc-lib',
-      buildable: true,
+      bundler: 'tsc',
+      projectNameAndRootFormat: 'as-provided',
     });
 
     expect(
       readProjectConfiguration(tree, 'tsc-lib').targets['build']['executor']
-    ).toEqual('@nrwl/js:tsc');
+    ).toEqual('@nx/js:tsc');
 
     await convertToSwcGenerator(tree, { project: 'tsc-lib' });
 
     expect(
       readProjectConfiguration(tree, 'tsc-lib').targets['build']['executor']
-    ).toEqual('@nrwl/js:swc');
+    ).toEqual('@nx/js:swc');
     expect(
       tree.exists(
         join(readProjectConfiguration(tree, 'tsc-lib').root, '.swcrc')
       )
     ).toEqual(true);
     expect(tree.read('package.json', 'utf-8')).toContain('@swc/core');
+    expect(tree.read('tsc-lib/package.json', 'utf-8')).toContain(
+      '@swc/helpers'
+    );
   });
 });

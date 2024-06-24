@@ -1,8 +1,11 @@
-import { Tree } from '@nrwl/tao/src/shared/tree';
 import { relative } from 'path';
 import { visitNotIgnoredFiles } from '../generators/visit-not-ignored-files';
-import { normalizePath } from './path';
 
+import { normalizePath, Tree } from 'nx/src/devkit-exports';
+
+/**
+ * Analogous to cp -r oldDir newDir
+ */
 export function moveFilesToNewDirectory(
   tree: Tree,
   oldDir: string,

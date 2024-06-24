@@ -1,7 +1,8 @@
 {
   "name": "create-nx-workspace",
   "version": "0.0.1",
-  "description": "Smart, Fast and Extensible Build System",
+  "private": false,
+  "description": "Smart Monorepos · Fast CI",
   "repository": {
     "type": "git",
     "url": "https://github.com/nrwl/nx.git",
@@ -16,10 +17,11 @@
     "Nest",
     "Jest",
     "Cypress",
+    "Playwright",
     "CLI"
   ],
   "bin": {
-    "create-nx-workspace": "./bin/create-nx-workspace.js"
+    "create-nx-workspace": "./bin/index.js"
   },
   "author": "Victor Savkin",
   "license": "MIT",
@@ -28,12 +30,16 @@
   },
   "homepage": "https://nx.dev",
   "dependencies": {
-    "tmp": "~0.2.1",
-    "yargs-parser": "20.0.0",
+    "chalk": "^4.1.0",
     "enquirer": "~2.3.6",
     "flat": "^5.0.2",
-    "chalk": "4.1.0",
     "ora": "5.3.0",
-    "tslib": "^2.3.0"
+    "tmp": "~0.2.1",
+    "tslib": "^2.3.0",
+    "yargs": "^17.6.2",
+    "axios": "^1.6.0"
+  },
+  "publishConfig": {
+    "access": "public"
   }
 }

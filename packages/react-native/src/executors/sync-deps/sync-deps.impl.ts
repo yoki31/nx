@@ -1,14 +1,17 @@
 import { join } from 'path';
-import { findAllNpmDependencies } from '../../utils/find-all-npm-dependencies';
 import * as chalk from 'chalk';
 import {
   ExecutorContext,
+  ProjectGraph,
   logger,
+  readCachedProjectGraph,
   readJsonFile,
   writeJsonFile,
-} from '@nrwl/devkit';
+} from '@nx/devkit';
+
 import { ReactNativeSyncDepsOptions } from './schema';
-import { createProjectGraphAsync } from '@nrwl/workspace/src/core/project-graph';
+import { findAllNpmDependencies } from '../../utils/find-all-npm-dependencies';
+import { PackageJson } from 'nx/src/utils/package-json';
 
 export interface ReactNativeSyncDepsOutput {
   success: boolean;
@@ -18,14 +21,33 @@ export default async function* syncDepsExecutor(
   options: ReactNativeSyncDepsOptions,
   context: ExecutorContext
 ): AsyncGenerator<ReactNativeSyncDepsOutput> {
-  const projectRoot = context.workspace.projects[context.projectName].root;
+  const projectRoot =
+    context.projectsConfigurations.projects[context.projectName].root;
+
+  const workspacePackageJsonPath = join(context.root, 'package.json');
+  const projectPackageJsonPath = join(
+    context.root,
+    projectRoot,
+    'package.json'
+  );
+
+  const workspacePackageJson = readJsonFile(workspacePackageJsonPath);
+  const projectPackageJson = readJsonFile(projectPackageJsonPath);
   displayNewlyAddedDepsMessage(
     context.projectName,
     await syncDeps(
       context.projectName,
-      projectRoot,
-      context.root,
-      options.include
+      projectPackageJson,
+      projectPackageJsonPath,
+      workspacePackageJson,
+      context.projectGraph,
+      typeof options.include === 'string'
+        ? options.include.split(',')
+        : options.include,
+      typeof options.exclude === 'string'
+        ? options.exclude.split(',')
+        : options.exclude,
+      options.all
     )
   );
 
@@ -34,37 +56,66 @@ export default async function* syncDepsExecutor(
 
 export async function syncDeps(
   projectName: string,
-  projectRoot: string,
-  workspaceRoot: string,
-  include?: string
+  projectPackageJson: PackageJson,
+  projectPackageJsonPath: string,
+  workspacePackageJson: PackageJson,
+  projectGraph: ProjectGraph = readCachedProjectGraph(),
+  include: string[] = [],
+  exclude: string[] = [],
+  all: boolean = false
 ): Promise<string[]> {
-  const graph = await createProjectGraphAsync();
-  const npmDeps = findAllNpmDependencies(graph, projectName);
-  const packageJsonPath = join(workspaceRoot, projectRoot, 'package.json');
-  const packageJson = readJsonFile(packageJsonPath);
+  let npmDeps = all
+    ? Object.keys(workspacePackageJson.dependencies || {})
+    : findAllNpmDependencies(projectGraph, projectName);
+  let npmDevdeps = all
+    ? Object.keys(workspacePackageJson.devDependencies || {})
+    : [];
+
   const newDeps = [];
-  const includeDeps = include?.split(',');
   let updated = false;
 
-  if (!packageJson.dependencies) {
-    packageJson.dependencies = {};
+  if (!projectPackageJson.dependencies) {
+    projectPackageJson.dependencies = {};
     updated = true;
   }
 
-  if (includeDeps) {
-    npmDeps.push(...includeDeps);
+  if (include && include.length) {
+    npmDeps.push(...include);
+  }
+  if (exclude && exclude.length) {
+    npmDeps = npmDeps.filter((dep) => !exclude.includes(dep));
+  }
+
+  if (!projectPackageJson.devDependencies) {
+    projectPackageJson.devDependencies = {};
+  }
+  if (!projectPackageJson.dependencies) {
+    projectPackageJson.dependencies = {};
   }
 
   npmDeps.forEach((dep) => {
-    if (!packageJson.dependencies[dep]) {
-      packageJson.dependencies[dep] = '*';
+    if (
+      !projectPackageJson.dependencies[dep] &&
+      !projectPackageJson.devDependencies[dep]
+    ) {
+      projectPackageJson.dependencies[dep] = '*';
+      newDeps.push(dep);
+      updated = true;
+    }
+  });
+  npmDevdeps.forEach((dep) => {
+    if (
+      !projectPackageJson.dependencies[dep] &&
+      !projectPackageJson.devDependencies[dep]
+    ) {
+      projectPackageJson.devDependencies[dep] = '*';
       newDeps.push(dep);
       updated = true;
     }
   });
 
   if (updated) {
-    writeJsonFile(packageJsonPath, packageJson);
+    writeJsonFile(projectPackageJsonPath, projectPackageJson);
   }
 
   return newDeps;

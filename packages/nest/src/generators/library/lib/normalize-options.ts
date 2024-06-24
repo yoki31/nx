@@ -1,38 +1,53 @@
-import type { Tree } from '@nrwl/devkit';
-import { getWorkspaceLayout, joinPathFragments, names } from '@nrwl/devkit';
-import { Linter } from '@nrwl/linter';
-import type { Schema as NodeLibraryGeneratorOptions } from '@nrwl/node/src/generators/library/schema';
+import { Tree, readNxJson } from '@nx/devkit';
+import { determineProjectNameAndRootOptions } from '@nx/devkit/src/generators/project-name-and-root-utils';
+import { getNpmScope } from '@nx/js/src/utils/package-json/get-npm-scope';
+import type { LibraryGeneratorSchema as JsLibraryGeneratorSchema } from '@nx/js/src/utils/schema';
+import { Linter } from '@nx/eslint';
 import type { LibraryGeneratorOptions, NormalizedOptions } from '../schema';
 
-export function normalizeOptions(
+export async function normalizeOptions(
   tree: Tree,
   options: LibraryGeneratorOptions
-): NormalizedOptions {
-  const { libsDir, npmScope } = getWorkspaceLayout(tree);
-  const name = names(options.name).fileName;
-  const projectDirectory = options.directory
-    ? `${names(options.directory).fileName}/${name}`
-    : name;
+): Promise<NormalizedOptions> {
+  const {
+    projectName,
+    names: projectNames,
+    projectRoot,
+    importPath,
+  } = await determineProjectNameAndRootOptions(tree, {
+    name: options.name,
+    projectType: 'library',
+    directory: options.directory,
+    importPath: options.importPath,
+    projectNameAndRootFormat: options.projectNameAndRootFormat,
+    callingGenerator: '@nx/nest:library',
+  });
+  const nxJson = readNxJson(tree);
+  const addPlugin =
+    process.env.NX_ADD_PLUGINS !== 'false' &&
+    nxJson.useInferencePlugins !== false;
 
-  const projectName = projectDirectory.replace(new RegExp('/', 'g'), '-');
-  const fileName = projectName;
-  const projectRoot = joinPathFragments(libsDir, projectDirectory);
+  options.addPlugin ??= addPlugin;
 
+  const fileName = options.simpleName
+    ? projectNames.projectSimpleName
+    : projectNames.projectFileName;
   const parsedTags = options.tags
     ? options.tags.split(',').map((s) => s.trim())
     : [];
 
   const normalized: NormalizedOptions = {
     ...options,
+    strict: options.strict ?? true,
     controller: options.controller ?? false,
     fileName,
     global: options.global ?? false,
     linter: options.linter ?? Linter.EsLint,
     parsedTags,
-    prefix: npmScope, // we could also allow customizing this
-    projectDirectory,
+    prefix: getNpmScope(tree), // we could also allow customizing this
     projectName,
     projectRoot,
+    importPath,
     service: options.service ?? false,
     target: options.target ?? 'es6',
     testEnvironment: options.testEnvironment ?? 'node',
@@ -42,23 +57,26 @@ export function normalizeOptions(
   return normalized;
 }
 
-export function toNodeLibraryGeneratorOptions(
+export function toJsLibraryGeneratorOptions(
   options: LibraryGeneratorOptions
-): NodeLibraryGeneratorOptions {
+): JsLibraryGeneratorSchema {
   return {
     name: options.name,
-    buildable: options.buildable,
+    bundler: options?.buildable ? 'tsc' : 'none',
     directory: options.directory,
     importPath: options.importPath,
     linter: options.linter,
     publishable: options.publishable,
     skipFormat: true,
     skipTsConfig: options.skipTsConfig,
+    skipPackageJson: options.skipPackageJson,
     strict: options.strict,
     tags: options.tags,
     testEnvironment: options.testEnvironment,
     unitTestRunner: options.unitTestRunner,
-    standaloneConfig: options.standaloneConfig,
+    config: options.standaloneConfig ? 'project' : 'workspace',
     setParserOptionsProject: options.setParserOptionsProject,
+    projectNameAndRootFormat: options.projectNameAndRootFormat,
+    addPlugin: options.addPlugin,
   };
 }

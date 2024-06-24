@@ -1,71 +1,65 @@
 import {
   addProjectConfiguration,
+  readNxJson,
   TargetConfiguration,
   Tree,
-} from '@nrwl/devkit';
+} from '@nx/devkit';
+import {
+  expoBuildTarget,
+  expoTestTarget,
+  reactNativeBuildTarget,
+  reactNativeTestTarget,
+} from './get-targets';
 import { NormalizedSchema } from './normalize-options';
 
 export function addProject(host: Tree, options: NormalizedSchema) {
-  addProjectConfiguration(host, options.projectName, {
-    root: options.projectRoot,
-    sourceRoot: `${options.projectRoot}/src`,
+  const nxJson = readNxJson(host);
+  const hasPlugin = nxJson.plugins?.some((p) =>
+    typeof p === 'string'
+      ? p === '@nx/detox/plugin'
+      : p.plugin === '@nx/detox/plugin'
+  );
+
+  addProjectConfiguration(host, options.e2eProjectName, {
+    root: options.e2eProjectRoot,
+    sourceRoot: `${options.e2eProjectRoot}/src`,
     projectType: 'application',
-    targets: { ...getTargets(options) },
+    targets: hasPlugin ? {} : getTargets(options),
     tags: [],
-    implicitDependencies: options.project ? [options.project] : undefined,
+    implicitDependencies: [options.appProject],
   });
 }
 
 function getTargets(options: NormalizedSchema) {
-  const architect: { [key: string]: TargetConfiguration } = {};
+  const targets: { [key: string]: TargetConfiguration } = {};
 
-  architect['build-ios'] = {
-    executor: '@nrwl/detox:build',
-    options: {
-      detoxConfiguration: 'ios.sim.debug',
-    },
-    configurations: {
-      production: {
-        detoxConfiguration: 'ios.sim.release',
-      },
-    },
+  targets['build-ios'] = {
+    executor: '@nx/detox:build',
+    ...(options.framework === 'react-native'
+      ? reactNativeBuildTarget('ios.sim')
+      : expoBuildTarget('ios.sim')),
   };
 
-  architect['test-ios'] = {
-    executor: '@nrwl/detox:test',
-    options: {
-      detoxConfiguration: 'ios.sim.debug',
-    },
-    configurations: {
-      production: {
-        detoxConfiguration: 'ios.sim.release',
-      },
-    },
+  targets['test-ios'] = {
+    executor: '@nx/detox:test',
+    ...(options.framework === 'react-native'
+      ? reactNativeTestTarget('ios.sim', options.e2eProjectName)
+      : expoTestTarget('ios.sim', options.e2eProjectName)),
   };
 
-  architect['build-android'] = {
-    executor: '@nrwl/detox:build',
-    options: {
-      detoxConfiguration: 'android.emu.debug',
-    },
-    configurations: {
-      production: {
-        detoxConfiguration: 'android.emu.release',
-      },
-    },
+  targets['build-android'] = {
+    executor: '@nx/detox:build',
+    ...(options.framework === 'react-native'
+      ? reactNativeBuildTarget('android.emu')
+      : expoBuildTarget('android.emu')),
   };
 
-  architect['test-android'] = {
-    executor: '@nrwl/detox:test',
-    options: {
-      detoxConfiguration: 'android.emu.debug',
-    },
-    configurations: {
-      production: {
-        detoxConfiguration: 'android.emu.release',
-      },
-    },
+  targets['test-android'] = {
+    executor: '@nx/detox:test',
+    ...(options.framework === 'react-native'
+      ? reactNativeTestTarget('android.emu', options.e2eProjectName)
+      : expoTestTarget('android.emu', options.e2eProjectName)),
   };
 
-  return architect;
+  return targets;
 }

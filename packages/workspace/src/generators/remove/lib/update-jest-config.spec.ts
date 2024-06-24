@@ -1,19 +1,23 @@
-import { readProjectConfiguration, Tree } from '@nrwl/devkit';
-import { createTreeWithEmptyWorkspace } from '@nrwl/devkit/testing';
+import 'nx/src/internal-testing-utils/mock-project-graph';
+
+import { readProjectConfiguration, Tree } from '@nx/devkit';
+import { createTreeWithEmptyWorkspace } from '@nx/devkit/testing';
 
 import { readFileSync } from 'fs';
 import { join } from 'path';
 
 import { Schema } from '../schema';
 import { updateJestConfig } from './update-jest-config';
-import { libraryGenerator } from '../../library/library';
+
+// nx-ignore-next-line
+const { libraryGenerator } = require('@nx/js');
 
 describe('updateRootJestConfig', () => {
   let tree: Tree;
   let schema: Schema;
 
   beforeEach(async () => {
-    tree = createTreeWithEmptyWorkspace();
+    tree = createTreeWithEmptyWorkspace({ layout: 'apps-libs' });
 
     schema = {
       projectName: 'my-lib',
@@ -23,27 +27,25 @@ describe('updateRootJestConfig', () => {
 
     await libraryGenerator(tree, {
       name: 'my-lib',
-      standaloneConfig: false,
     });
     await libraryGenerator(tree, {
       name: 'my-other-lib',
-      standaloneConfig: false,
     });
 
     tree.write(
-      'jest.config.js',
-      readFileSync(join(__dirname, './test-files/jest.config.js'), 'utf-8')
+      'jest.config.ts',
+      readFileSync(join(__dirname, './__fixtures__/jest.config.ts'), 'utf-8')
     );
   });
 
   it('should delete lib project ref from root jest config', async () => {
-    const jestConfig = tree.read('jest.config.js', 'utf-8');
+    const jestConfig = tree.read('jest.config.ts', 'utf-8');
 
     expect(jestConfig).toMatchSnapshot();
 
     updateJestConfig(tree, schema, readProjectConfiguration(tree, 'my-lib'));
 
-    const updatedJestConfig = tree.read('jest.config.js', 'utf-8');
+    const updatedJestConfig = tree.read('jest.config.ts', 'utf-8');
 
     expect(updatedJestConfig).toMatchSnapshot();
 
@@ -53,24 +55,60 @@ describe('updateRootJestConfig', () => {
       readProjectConfiguration(tree, 'my-other-lib')
     );
 
-    const updatedJestConfig2 = tree.read('jest.config.js', 'utf-8');
+    const updatedJestConfig2 = tree.read('jest.config.ts', 'utf-8');
 
     expect(updatedJestConfig2).toMatchSnapshot();
   });
 
   it('should not delete lib project ref from root jest config if there is no project jest config', () => {
-    tree.delete('libs/my-lib/jest.config.js');
+    tree.delete('libs/my-lib/jest.config.ts');
 
-    const originalRootJestConfig = tree.read('jest.config.js', 'utf-8');
+    const originalRootJestConfig = tree.read('jest.config.ts', 'utf-8');
     tree.write(
-      'jest.config.js',
+      'jest.config.ts',
       originalRootJestConfig.replace(`'<rootDir>/libs/my-lib',`, '')
     );
 
     updateJestConfig(tree, schema, readProjectConfiguration(tree, 'my-lib'));
 
-    const rootJestConfig = tree.read('jest.config.js', 'utf-8');
+    const rootJestConfig = tree.read('jest.config.ts', 'utf-8');
 
     expect(rootJestConfig).toMatchSnapshot();
+  });
+
+  it('should delete project if root jest config is not a multi-project config', () => {
+    tree.write(
+      'jest.config.ts',
+      readFileSync(
+        join(__dirname, './__fixtures__/jest-project.config.ts'),
+        'utf-8'
+      )
+    );
+
+    updateJestConfig(tree, schema, readProjectConfiguration(tree, 'my-lib'));
+
+    const rootJestConfig = tree.read('jest.config.ts', 'utf-8');
+
+    expect(rootJestConfig).toMatchSnapshot();
+  });
+
+  it('should handle not having a root jest config file', async () => {
+    // ARRANGE
+    tree.delete('jest.config.ts');
+
+    await libraryGenerator(tree, {
+      name: 'test',
+      bundler: 'vite',
+      unitTestRunner: 'vitest',
+    });
+
+    // ACT
+    expect(() =>
+      updateJestConfig(
+        tree,
+        { projectName: 'test', skipFormat: false, forceRemove: false },
+        readProjectConfiguration(tree, 'test')
+      )
+    ).not.toThrow();
   });
 });

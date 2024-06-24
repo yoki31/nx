@@ -1,104 +1,47 @@
-import { ExecutorContext, logger } from '@nrwl/devkit';
-import { buildDevStandalone } from '@storybook/core/server';
-import 'dotenv/config';
-import { CommonNxStorybookConfig } from '../models';
+import { ExecutorContext } from '@nx/devkit';
+import * as build from '@storybook/core-server';
 import {
-  getStorybookFrameworkPath,
-  resolveCommonStorybookOptionMapper,
-  runStorybookSetupCheck,
-} from '../utils';
-
-export interface StorybookExecutorOptions extends CommonNxStorybookConfig {
-  host?: string;
-  port?: number;
-  quiet?: boolean;
-  https?: boolean;
-  sslCert?: string;
-  sslKey?: string;
-  staticDir?: string[];
-  watch?: boolean;
-  docsMode?: boolean;
-}
+  pleaseUpgrade,
+  storybookConfigExistsCheck,
+  storybookMajorVersion,
+} from '../../utils/utilities';
+import { CLIOptions } from '@storybook/types';
 
 export default async function* storybookExecutor(
-  options: StorybookExecutorOptions,
+  options: CLIOptions,
   context: ExecutorContext
-) {
-  let frameworkPath = getStorybookFrameworkPath(options.uiFramework);
-
-  const frameworkOptions = (await import(frameworkPath)).default;
-  const option = storybookOptionMapper(options, frameworkOptions, context);
-
-  // print warnings
-  runStorybookSetupCheck(options);
-
-  await runInstance(option);
-
-  yield { success: true };
-
-  // This Promise intentionally never resolves, leaving the process running
+): AsyncGenerator<{
+  success: boolean;
+  info?: { port: number; baseUrl?: string };
+}> {
+  const storybook7 = storybookMajorVersion() >= 7;
+  if (!storybook7) {
+    throw pleaseUpgrade();
+  }
+  storybookConfigExistsCheck(options.configDir, context.projectName);
+  const buildOptions: CLIOptions = options;
+  const result = await runInstance(buildOptions);
+  yield {
+    success: true,
+    info: {
+      port: result?.['port'],
+      baseUrl: `${options.https ? 'https' : 'http'}://${
+        options.host ?? 'localhost'
+      }:${result?.['port']}`,
+    },
+  };
   await new Promise<{ success: boolean }>(() => {});
 }
 
-function runInstance(options: StorybookExecutorOptions) {
+function runInstance(options: CLIOptions): Promise<void | {
+  port: number;
+  address: string;
+  networkAddress: string;
+}> {
   const env = process.env.NODE_ENV ?? 'development';
   process.env.NODE_ENV = env;
-  return buildDevStandalone({
+  return build.build({
     ...options,
-    ci: true,
-    configType: env.toUpperCase(),
-  } as any).catch((error) => {
-    // TODO(juri): find a better cleaner way to handle these. Taken from:
-    // https://github.com/storybookjs/storybook/blob/dea23e5e9a3e7f5bb25cb6520d3011cc710796c8/lib/core-server/src/build-dev.ts#L138-L166
-    if (error instanceof Error) {
-      if ((error as any).error) {
-        logger.error((error as any).error);
-      } else if (
-        (error as any).stats &&
-        (error as any).stats.compilation.errors
-      ) {
-        (error as any).stats.compilation.errors.forEach((e: any) =>
-          logger.log(e)
-        );
-      } else {
-        logger.error(error as any);
-      }
-    } else if (error.compilation?.errors) {
-      error.compilation.errors.forEach((e: any) => logger.log(e));
-    }
-
-    logger.log('');
-    logger.warn(
-      error.close
-        ? `
-          FATAL broken build!, will close the process,
-          Fix the error below and restart storybook.
-        `
-        : `
-          Broken build, fix the error above.
-          You may need to refresh the browser.
-        `
-    );
-
-    process.exit(1);
-  });
-}
-
-function storybookOptionMapper(
-  builderOptions: StorybookExecutorOptions,
-  frameworkOptions: any,
-  context: ExecutorContext
-) {
-  const storybookOptions = {
-    ...builderOptions,
-    ...resolveCommonStorybookOptionMapper(
-      builderOptions,
-      frameworkOptions,
-      context
-    ),
     mode: 'dev',
-    watch: true,
-  };
-
-  return storybookOptions;
+  });
 }

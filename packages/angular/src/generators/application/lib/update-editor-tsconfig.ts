@@ -1,18 +1,41 @@
-import type { Tree } from '@nrwl/devkit';
+import {
+  joinPathFragments,
+  readJson,
+  readProjectConfiguration,
+  updateJson,
+  type Tree,
+} from '@nx/devkit';
+import { updateAppEditorTsConfigExcludedFiles } from '../../utils/update-app-editor-tsconfig-excluded-files';
 import type { NormalizedSchema } from './normalized-schema';
 
-import { joinPathFragments, updateJson } from '@nrwl/devkit';
+interface TsConfig {
+  compilerOptions?: { types: string[] };
+  exclude?: string[];
+}
 
-export function updateEditorTsConfig(host: Tree, options: NormalizedSchema) {
-  // This should be the last tsconfig references so it's not in the template
-  updateJson(
-    host,
-    joinPathFragments(options.appProjectRoot, 'tsconfig.json'),
-    (json) => {
-      json.references.push({
-        path: './tsconfig.editor.json',
-      });
-      return json;
-    }
+function getCompilerOptionsTypes(tsConfig: TsConfig): string[] {
+  return tsConfig?.compilerOptions?.types ?? [];
+}
+
+export function updateEditorTsConfig(tree: Tree, options: NormalizedSchema) {
+  const appTsConfig = readJson<TsConfig>(
+    tree,
+    joinPathFragments(options.appProjectRoot, 'tsconfig.app.json')
   );
+  const types = getCompilerOptionsTypes(appTsConfig);
+
+  if (types?.length) {
+    updateJson(
+      tree,
+      joinPathFragments(options.appProjectRoot, 'tsconfig.editor.json'),
+      (json) => {
+        json.compilerOptions ??= {};
+        json.compilerOptions.types = Array.from(new Set(types));
+        return json;
+      }
+    );
+  }
+
+  const project = readProjectConfiguration(tree, options.name);
+  updateAppEditorTsConfigExcludedFiles(tree, project);
 }

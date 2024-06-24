@@ -1,19 +1,18 @@
-<p style="text-align: center;"><img src="https://raw.githubusercontent.com/nrwl/nx/master/images/nx.png" width="600" alt="Nx - Smart, Fast and Extensible Build System"></p>
+<p style="text-align: center;">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/nrwl/nx/master/images/nx-dark.svg">
+    <img alt="Nx - Smart Monorepos · Fast CI" src="https://raw.githubusercontent.com/nrwl/nx/master/images/nx-light.svg" width="100%">
+  </picture>
+</p>
 
 {{links}}
 
 <hr>
 
-# Storybook Plugin for Nx
+# Nx: Smart Monorepos · Fast CI
 
-{{what-is-nx}}
+Nx is a build system with built-in tooling and advanced CI capabilities. It helps you maintain and scale monorepos, both locally and on CI.
 
-## What is It?
+This package is a [Storybook plugin for Nx](https://nx.dev/nx-api/storybook).
 
-Executors and generators adding Storybook support for frontend applications.
-
-## How to Use
-
-This package is used by the `@nrwl/web`, `@nrwl/react`, and `@nrwl/angular`. See [https://github.com/nrwl/nx](https://github.com/nrwl/nx) for more information.
-
-{{resources}}
+{{content}}

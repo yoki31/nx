@@ -1,34 +1,30 @@
 {
-  "root": "e2e/storybook",
+  "name": "e2e-storybook",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
   "sourceRoot": "e2e/storybook",
   "projectType": "application",
+  "implicitDependencies": ["storybook"],
   "targets": {
-    "e2e": {
-      "executor": "@nrwl/workspace:run-commands",
-      "options": {
-        "commands": [
-          {
-            "command": "yarn e2e-start-local-registry"
-          },
-          {
-            "command": "yarn e2e-build-package-publish"
-          },
-          {
-            "command": "nx run-e2e-tests e2e-storybook"
-          }
-        ],
-        "parallel": false
-      }
+    "e2e-ci--src/storybook-angular.test.ts": {
+      "dependsOn": [
+        "nx:build-native",
+        "@nx/nx-source:populate-local-registry-storage"
+      ],
+      "inputs": ["e2eInputs", "^production"]
     },
-    "run-e2e-tests": {
-      "executor": "@nrwl/jest:jest",
-      "options": {
-        "jestConfig": "e2e/storybook/jest.config.js",
-        "passWithNoTests": true,
-        "runInBand": true
-      },
-      "outputs": ["coverage/e2e/storybook"]
+    "e2e-ci--src/storybook-nested.test.ts": {
+      "dependsOn": [
+        "nx:build-native",
+        "@nx/nx-source:populate-local-registry-storage"
+      ],
+      "inputs": ["e2eInputs", "^production"]
+    },
+    "e2e-ci--src/storybook.test.ts": {
+      "dependsOn": [
+        "nx:build-native",
+        "@nx/nx-source:populate-local-registry-storage"
+      ],
+      "inputs": ["e2eInputs", "^production"]
     }
-  },
-  "implicitDependencies": ["storybook"]
+  }
 }

@@ -1,19 +1,9 @@
 // Jest Snapshot v1, https://goo.gl/fbAQLP
 
-exports[`@nrwl/storybook:init dependencies for package.json should add angular related dependencies when using Angular as uiFramework 1`] = `
-Object {
-  "dependencies": Object {
-    "existing": "1.0.0",
-  },
-  "devDependencies": Object {
-    "@angular/forms": "*",
-    "@nrwl/storybook": "~6.4.5",
-    "@storybook/addon-essentials": "~6.4.5",
-    "@storybook/angular": "~6.4.5",
-    "@storybook/builder-webpack5": "~6.4.5",
-    "@storybook/manager-webpack5": "~6.4.5",
-    "existing": "1.0.0",
-  },
-  "name": "test-name",
-}
+exports[`@nx/storybook:init should not add storybook-static to .gitignore if it already exists 1`] = `
+"
+    storybook-static
+    dist
+    node_modules
+  "
 `;

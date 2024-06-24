@@ -1,21 +1,16 @@
-<p style="text-align: center;"><img src="https://raw.githubusercontent.com/nrwl/nx/master/images/nx.png" width="600" alt="Nx - Smart, Fast and Extensible Build System"></p>
+<p style="text-align: center;">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/nrwl/nx/master/images/nx-dark.svg">
+    <img alt="Nx - Smart Monorepos · Fast CI" src="https://raw.githubusercontent.com/nrwl/nx/master/images/nx-light.svg" width="100%">
+  </picture>
+</p>
 
 {{links}}
 
 <hr>
 
-# Nx CLI
+# Nx: Smart Monorepos · Fast CI
 
-This is an alias of the [@nrwl/cli](https://www.npmjs.com/package/@nrwl/cli) package. Please see [@nrwl/cli](https://www.npmjs.com/package/@nrwl/cli) for more information.
+Nx is a build system with built-in tooling and advanced CI capabilities. It helps you maintain and scale monorepos, both locally and on CI.
 
-{{what-is-nx}}
-
-{{getting-started}}
-
-### Serving Application
-
-- Run `nx serve myapp` to serve the newly generated application!
-- Run `nx test myapp` to test it.
-- Run `nx e2e myapp-e2e` to run e2e tests for it.
-
-{{resources}}
+{{content}}

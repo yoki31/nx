@@ -1,61 +1,36 @@
-import { Tree, names, offsetFromRoot, updateJson } from '@nrwl/devkit';
-import * as path from 'path';
-import * as ts from 'typescript';
-import { addRoute } from '../../../utils/nx-devkit/ast-utils';
+import { names, Tree } from '@nx/devkit';
 import { NormalizedSchema } from './normalized-schema';
+import { addRoute } from '../../../utils/nx-devkit/route-utils';
+import { ensureTypescript } from '@nx/js/src/utils/typescript/ensure-typescript';
 
-export function addLoadChildren(host: Tree, options: NormalizedSchema) {
-  if (!host.exists(options.parentModule)) {
-    throw new Error(`Cannot find '${options.parentModule}'`);
+let tsModule: typeof import('typescript');
+
+export function addLoadChildren(
+  tree: Tree,
+  options: NormalizedSchema['libraryOptions']
+) {
+  if (!tree.exists(options.parent)) {
+    throw new Error(`Cannot find '${options.parent}'`);
+  }
+  if (!tsModule) {
+    tsModule = ensureTypescript();
   }
 
-  const moduleSource = host.read(options.parentModule)!.toString('utf-8');
-  let sourceFile = ts.createSourceFile(
-    options.parentModule,
+  const moduleSource = tree.read(options.parent, 'utf-8');
+  const sourceFile = tsModule.createSourceFile(
+    options.parent,
     moduleSource,
-    ts.ScriptTarget.Latest,
+    tsModule.ScriptTarget.Latest,
     true
   );
 
-  sourceFile = addRoute(
-    host,
-    options.parentModule,
-    sourceFile,
-    `{path: '${
-      names(options.fileName).fileName
-    }', loadChildren: () => import('${
-      options.importPath
-    }').then(module => module.${options.moduleName})}`
-  );
+  const route = `{ path: '${
+    names(options.fileName).fileName
+  }', loadChildren: () => import('${options.importPath}').then(m => m.${
+    options.standalone
+      ? `${names(options.name).propertyName}Routes`
+      : options.moduleName
+  }) }`;
 
-  const tsConfig = findClosestTsConfigApp(host, options.parentModule);
-  if (tsConfig) {
-    const offset = offsetFromRoot(path.dirname(tsConfig));
-    updateJson(host, tsConfig, (json) => {
-      json.include = json.include ?? [];
-      json.include = [
-        ...json.include,
-        `${offset}${options.projectRoot}/src/index.ts`,
-      ];
-      return json;
-    });
-  } else {
-    console.warn(
-      `Unable to find tsconfig.json for ${options.parentModule}. Related \`includes\` for the tsconfig have not been updated.`
-    );
-  }
-}
-
-function findClosestTsConfigApp(
-  host: Tree,
-  parentModule: string
-): string | null {
-  const dir = path.parse(parentModule).dir;
-  if (host.exists(`${dir}/tsconfig.app.json`)) {
-    return `${dir}/tsconfig.app.json`;
-  } else if (dir != '') {
-    return findClosestTsConfigApp(host, dir);
-  } else {
-    return null;
-  }
+  addRoute(tree, options.parent, route);
 }

@@ -1,409 +1,536 @@
 // Jest Snapshot v1, https://goo.gl/fbAQLP
 
-exports[`app --mfe should add a remote application and add it to a specified host applications webpack config that contains a remote application already 1`] = `
-"const ModuleFederationPlugin = require(\\"webpack/lib/container/ModuleFederationPlugin\\");
-const mf = require(\\"@angular-architects/module-federation/webpack\\");
-const path = require(\\"path\\");
-const share = mf.share;
+exports[`app --minimal should skip "nx-welcome.component.ts" file and references for non-standalone apps with routing 1`] = `
+"import { NgModule } from '@angular/core';
+import { BrowserModule } from '@angular/platform-browser';
+import { RouterModule } from '@angular/router';
+import { AppComponent } from './app.component';
+import { appRoutes } from './app.routes';
 
-/**
-* We use the NX_TSCONFIG_PATH environment variable when using the @nrwl/angular:webpack-browser
-* builder as it will generate a temporary tsconfig file which contains any required remappings of
-* shared libraries.
-* A remapping will occur when a library is buildable, as webpack needs to know the location of the
-* built files for the buildable library.
-* This NX_TSCONFIG_PATH environment variable is set by the @nrwl/angular:webpack-browser and it contains
-* the location of the generated temporary tsconfig file.
-*/
-const tsConfigPath = process.env.NX_TSCONFIG_PATH ?? path.join(__dirname, '../../tsconfig.base.json');
-
-const workspaceRootPath = path.join(__dirname, '../../');
-const sharedMappings = new mf.SharedMappings();
-sharedMappings.register(tsConfigPath, [
-  /* mapped paths to share */
-], workspaceRootPath);
-
-module.exports = {
-  output: {
-    uniqueName: \\"app1\\",
-    publicPath: \\"auto\\",
-  },
-  optimization: {
-    runtimeChunk: false,
-  },
-  experiments: {
-    outputModule: true
-  },
-  resolve: {
-    alias: {
-      ...sharedMappings.getAliases(),
-    },
-  },
-  plugins: [
-    new ModuleFederationPlugin({
-      remotes: {
-    		\\"remote1\\": 'http://localhost:4201/remoteEntry.js',
-    		\\"remote2\\": 'http://localhost:4202/remoteEntry.js',
-      
-      },
-      shared: share({
-        \\"@angular/core\\": { singleton: true, strictVersion: true, requiredVersion: 'auto', includeSecondaries: true },
-        \\"@angular/common\\": { singleton: true, strictVersion: true, requiredVersion: 'auto', includeSecondaries: true },
-        \\"@angular/common/http\\": { singleton: true, strictVersion: true, requiredVersion: 'auto', includeSecondaries: true },
-        \\"@angular/router\\": { singleton: true, strictVersion: true, requiredVersion: 'auto', includeSecondaries: true },
-        \\"rxjs\\": { singleton: true, strictVersion: true, requiredVersion: 'auto', includeSecondaries: true },
-        ...sharedMappings.getDescriptors(),
-      }),
-      library: { 
-        type: 'module' 
-      },
-    }),
-    sharedMappings.getPlugin(),
+@NgModule({
+  declarations: [AppComponent],
+  imports: [
+    BrowserModule,
+    RouterModule.forRoot(appRoutes),
   ],
-};
+  providers: [],
+  bootstrap: [AppComponent],
+})
+export class AppModule {}
 "
 `;
 
-exports[`app --mfe should add a remote application and add it to a specified host applications webpack config when no other remote has been added to it 1`] = `
-"const ModuleFederationPlugin = require(\\"webpack/lib/container/ModuleFederationPlugin\\");
-const mf = require(\\"@angular-architects/module-federation/webpack\\");
-const path = require(\\"path\\");
-const share = mf.share;
+exports[`app --minimal should skip "nx-welcome.component.ts" file and references for non-standalone apps with routing 2`] = `
+"import { Component } from '@angular/core';
 
-/**
-* We use the NX_TSCONFIG_PATH environment variable when using the @nrwl/angular:webpack-browser
-* builder as it will generate a temporary tsconfig file which contains any required remappings of
-* shared libraries.
-* A remapping will occur when a library is buildable, as webpack needs to know the location of the
-* built files for the buildable library.
-* This NX_TSCONFIG_PATH environment variable is set by the @nrwl/angular:webpack-browser and it contains
-* the location of the generated temporary tsconfig file.
-*/
-const tsConfigPath = process.env.NX_TSCONFIG_PATH ?? path.join(__dirname, '../../tsconfig.base.json');
-
-const workspaceRootPath = path.join(__dirname, '../../');
-const sharedMappings = new mf.SharedMappings();
-sharedMappings.register(tsConfigPath, [
-  /* mapped paths to share */
-], workspaceRootPath);
-
-module.exports = {
-  output: {
-    uniqueName: \\"app1\\",
-    publicPath: \\"auto\\",
-  },
-  optimization: {
-    runtimeChunk: false,
-  },
-  experiments: {
-    outputModule: true
-  },
-  resolve: {
-    alias: {
-      ...sharedMappings.getAliases(),
-    },
-  },
-  plugins: [
-    new ModuleFederationPlugin({
-      remotes: {
-    		\\"remote1\\": 'http://localhost:4200/remoteEntry.js',
-      
-      },
-      shared: share({
-        \\"@angular/core\\": { singleton: true, strictVersion: true, requiredVersion: 'auto', includeSecondaries: true },
-        \\"@angular/common\\": { singleton: true, strictVersion: true, requiredVersion: 'auto', includeSecondaries: true },
-        \\"@angular/common/http\\": { singleton: true, strictVersion: true, requiredVersion: 'auto', includeSecondaries: true },
-        \\"@angular/router\\": { singleton: true, strictVersion: true, requiredVersion: 'auto', includeSecondaries: true },
-        \\"rxjs\\": { singleton: true, strictVersion: true, requiredVersion: 'auto', includeSecondaries: true },
-        ...sharedMappings.getDescriptors(),
-      }),
-      library: { 
-        type: 'module' 
-      },
-    }),
-    sharedMappings.getPlugin(),
-  ],
-};
+@Component({
+  selector: 'app-root',
+  templateUrl: './app.component.html',
+  styleUrl: './app.component.css',
+})
+export class AppComponent {}
 "
 `;
 
-exports[`app --mfe should generate a Module Federation correctly for a each app 1`] = `
-"const ModuleFederationPlugin = require(\\"webpack/lib/container/ModuleFederationPlugin\\");
-const mf = require(\\"@angular-architects/module-federation/webpack\\");
-const path = require(\\"path\\");
-const share = mf.share;
+exports[`app --minimal should skip "nx-welcome.component.ts" file and references for non-standalone apps with routing 3`] = `
+"import { TestBed } from '@angular/core/testing';
+import { AppComponent } from './app.component';
+import { RouterTestingModule } from '@angular/router/testing';
 
-/**
-* We use the NX_TSCONFIG_PATH environment variable when using the @nrwl/angular:webpack-browser
-* builder as it will generate a temporary tsconfig file which contains any required remappings of
-* shared libraries.
-* A remapping will occur when a library is buildable, as webpack needs to know the location of the
-* built files for the buildable library.
-* This NX_TSCONFIG_PATH environment variable is set by the @nrwl/angular:webpack-browser and it contains
-* the location of the generated temporary tsconfig file.
-*/
-const tsConfigPath = process.env.NX_TSCONFIG_PATH ?? path.join(__dirname, '../../tsconfig.base.json');
+describe('AppComponent', () => {
+  beforeEach(async () => {
+    await TestBed.configureTestingModule({
+      imports: [RouterTestingModule],
+      declarations: [AppComponent]
+    }).compileComponents();
+  });
 
-const workspaceRootPath = path.join(__dirname, '../../');
-const sharedMappings = new mf.SharedMappings();
-sharedMappings.register(tsConfigPath, [
-  /* mapped paths to share */
-], workspaceRootPath);
-
-module.exports = {
-  output: {
-    uniqueName: \\"my-app\\",
-    publicPath: \\"auto\\",
-  },
-  optimization: {
-    runtimeChunk: false,
-  },
-  experiments: {
-    outputModule: true
-  },
-  resolve: {
-    alias: {
-      ...sharedMappings.getAliases(),
-    },
-  },
-  plugins: [
-    new ModuleFederationPlugin({
-      remotes: {
-      
-      },
-      shared: share({
-        \\"@angular/core\\": { singleton: true, strictVersion: true, requiredVersion: 'auto', includeSecondaries: true },
-        \\"@angular/common\\": { singleton: true, strictVersion: true, requiredVersion: 'auto', includeSecondaries: true },
-        \\"@angular/common/http\\": { singleton: true, strictVersion: true, requiredVersion: 'auto', includeSecondaries: true },
-        \\"@angular/router\\": { singleton: true, strictVersion: true, requiredVersion: 'auto', includeSecondaries: true },
-        \\"rxjs\\": { singleton: true, strictVersion: true, requiredVersion: 'auto', includeSecondaries: true },
-        ...sharedMappings.getDescriptors(),
-      }),
-      library: { 
-        type: 'module' 
-      },
-    }),
-    sharedMappings.getPlugin(),
-  ],
-};
+  it('should render title', () => {
+    const fixture = TestBed.createComponent(AppComponent);
+    fixture.detectChanges();
+    const compiled = fixture.nativeElement as HTMLElement;
+    expect(compiled.querySelector('h1')?.textContent).toContain(
+      'Welcome plain'
+    );
+  });
+});
 "
 `;
 
-exports[`app --mfe should generate a Module Federation correctly for a each app 2`] = `
-"const ModuleFederationPlugin = require(\\"webpack/lib/container/ModuleFederationPlugin\\");
-const mf = require(\\"@angular-architects/module-federation/webpack\\");
-const path = require(\\"path\\");
-const share = mf.share;
-
-/**
-* We use the NX_TSCONFIG_PATH environment variable when using the @nrwl/angular:webpack-browser
-* builder as it will generate a temporary tsconfig file which contains any required remappings of
-* shared libraries.
-* A remapping will occur when a library is buildable, as webpack needs to know the location of the
-* built files for the buildable library.
-* This NX_TSCONFIG_PATH environment variable is set by the @nrwl/angular:webpack-browser and it contains
-* the location of the generated temporary tsconfig file.
-*/
-const tsConfigPath = process.env.NX_TSCONFIG_PATH ?? path.join(__dirname, '../../tsconfig.base.json');
-
-const workspaceRootPath = path.join(__dirname, '../../');
-const sharedMappings = new mf.SharedMappings();
-sharedMappings.register(tsConfigPath, [
-  /* mapped paths to share */
-], workspaceRootPath);
-
-module.exports = {
-  output: {
-    uniqueName: \\"my-app\\",
-    publicPath: \\"auto\\",
-  },
-  optimization: {
-    runtimeChunk: false,
-  },
-  experiments: {
-    outputModule: true
-  },
-  resolve: {
-    alias: {
-      ...sharedMappings.getAliases(),
-    },
-  },
-  plugins: [
-    new ModuleFederationPlugin({
-      name: \\"my-app\\",
-      filename: \\"remoteEntry.js\\",
-      exposes: {
-        './Module': 'apps/my-app/src/app/remote-entry/entry.module.ts',
-      },
-      shared: share({
-        \\"@angular/core\\": { singleton: true, strictVersion: true, requiredVersion: 'auto', includeSecondaries: true },
-        \\"@angular/common\\": { singleton: true, strictVersion: true, requiredVersion: 'auto', includeSecondaries: true },
-        \\"@angular/common/http\\": { singleton: true, strictVersion: true, requiredVersion: 'auto', includeSecondaries: true },
-        \\"@angular/router\\": { singleton: true, strictVersion: true, requiredVersion: 'auto', includeSecondaries: true },
-        \\"rxjs\\": { singleton: true, strictVersion: true, requiredVersion: 'auto', includeSecondaries: true },
-        ...sharedMappings.getDescriptors(),
-      }),
-      library: { 
-        type: 'module' 
-      },
-    }),
-    sharedMappings.getPlugin(),
-  ],
-};
+exports[`app --minimal should skip "nx-welcome.component.ts" file and references for non-standalone apps with routing 4`] = `
+"<h1>Welcome plain</h1> <router-outlet></router-outlet>
 "
 `;
 
-exports[`app at the root should accept numbers in the path 1`] = `"src/9-websites/my-app"`;
+exports[`app --minimal should skip "nx-welcome.component.ts" file and references for non-standalone apps without routing 1`] = `
+"import { NgModule } from '@angular/core';
+import { BrowserModule } from '@angular/platform-browser';
+import { AppComponent } from './app.component';
 
-exports[`app nested should update workspace.json 1`] = `
-Object {
-  "architect": Object {
-    "build": Object {
-      "builder": "@angular-devkit/build-angular:browser",
-      "configurations": Object {
-        "development": Object {
-          "buildOptimizer": false,
+@NgModule({
+  declarations: [AppComponent],
+  imports: [
+    BrowserModule,
+  ],
+  providers: [],
+  bootstrap: [AppComponent],
+})
+export class AppModule {}
+"
+`;
+
+exports[`app --minimal should skip "nx-welcome.component.ts" file and references for non-standalone apps without routing 2`] = `
+"import { Component } from '@angular/core';
+
+@Component({
+  selector: 'app-root',
+  templateUrl: './app.component.html',
+  styleUrl: './app.component.css',
+})
+export class AppComponent {}
+"
+`;
+
+exports[`app --minimal should skip "nx-welcome.component.ts" file and references for non-standalone apps without routing 3`] = `
+"import { TestBed } from '@angular/core/testing';
+import { AppComponent } from './app.component';
+
+describe('AppComponent', () => {
+  beforeEach(async () => {
+    await TestBed.configureTestingModule({
+      imports: [],
+      declarations: [AppComponent]
+    }).compileComponents();
+  });
+
+  it('should render title', () => {
+    const fixture = TestBed.createComponent(AppComponent);
+    fixture.detectChanges();
+    const compiled = fixture.nativeElement as HTMLElement;
+    expect(compiled.querySelector('h1')?.textContent).toContain(
+      'Welcome plain'
+    );
+  });
+});
+"
+`;
+
+exports[`app --minimal should skip "nx-welcome.component.ts" file and references for non-standalone apps without routing 4`] = `
+"<h1>Welcome plain</h1> 
+"
+`;
+
+exports[`app --minimal should skip "nx-welcome.component.ts" file and references for standalone apps with routing 1`] = `
+"import { Component } from '@angular/core';
+import { RouterModule } from '@angular/router';
+
+@Component({
+  standalone: true,
+  imports: [RouterModule],
+  selector: 'app-root',
+  templateUrl: './app.component.html',
+  styleUrl: './app.component.css',
+})
+export class AppComponent {}
+"
+`;
+
+exports[`app --minimal should skip "nx-welcome.component.ts" file and references for standalone apps with routing 2`] = `
+"import { TestBed } from '@angular/core/testing';
+import { AppComponent } from './app.component';
+import { RouterTestingModule } from '@angular/router/testing';
+
+describe('AppComponent', () => {
+  beforeEach(async () => {
+    await TestBed.configureTestingModule({
+      imports: [AppComponent, RouterTestingModule],
+    }).compileComponents();
+  });
+
+  it('should render title', () => {
+    const fixture = TestBed.createComponent(AppComponent);
+    fixture.detectChanges();
+    const compiled = fixture.nativeElement as HTMLElement;
+    expect(compiled.querySelector('h1')?.textContent).toContain(
+      'Welcome plain'
+    );
+  });
+});
+"
+`;
+
+exports[`app --minimal should skip "nx-welcome.component.ts" file and references for standalone apps with routing 3`] = `
+"<h1>Welcome plain</h1> <router-outlet></router-outlet>
+"
+`;
+
+exports[`app --minimal should skip "nx-welcome.component.ts" file and references for standalone apps without routing 1`] = `
+"import { Component } from '@angular/core';
+
+@Component({
+  standalone: true,
+  imports: [],
+  selector: 'app-root',
+  templateUrl: './app.component.html',
+  styleUrl: './app.component.css',
+})
+export class AppComponent {}
+"
+`;
+
+exports[`app --minimal should skip "nx-welcome.component.ts" file and references for standalone apps without routing 2`] = `
+"import { TestBed } from '@angular/core/testing';
+import { AppComponent } from './app.component';
+
+describe('AppComponent', () => {
+  beforeEach(async () => {
+    await TestBed.configureTestingModule({
+      imports: [AppComponent],
+    }).compileComponents();
+  });
+
+  it('should render title', () => {
+    const fixture = TestBed.createComponent(AppComponent);
+    fixture.detectChanges();
+    const compiled = fixture.nativeElement as HTMLElement;
+    expect(compiled.querySelector('h1')?.textContent).toContain(
+      'Welcome plain'
+    );
+  });
+});
+"
+`;
+
+exports[`app --minimal should skip "nx-welcome.component.ts" file and references for standalone apps without routing 3`] = `
+"<h1>Welcome plain</h1> 
+"
+`;
+
+exports[`app --project-name-and-root-format=derived should generate correctly when directory is provided 1`] = `
+{
+  "$schema": "../../../node_modules/nx/schemas/project-schema.json",
+  "name": "my-dir-my-app",
+  "prefix": "app",
+  "projectType": "application",
+  "root": "apps/my-dir/my-app",
+  "sourceRoot": "apps/my-dir/my-app/src",
+  "tags": [],
+  "targets": {
+    "build": {
+      "configurations": {
+        "development": {
           "extractLicenses": false,
-          "namedChunks": true,
           "optimization": false,
           "sourceMap": true,
-          "vendorChunk": true,
         },
-        "production": Object {
-          "budgets": Array [
-            Object {
+        "production": {
+          "budgets": [
+            {
               "maximumError": "1mb",
               "maximumWarning": "500kb",
               "type": "initial",
             },
-            Object {
+            {
               "maximumError": "4kb",
               "maximumWarning": "2kb",
               "type": "anyComponentStyle",
-            },
-          ],
-          "fileReplacements": Array [
-            Object {
-              "replace": "apps/my-dir/my-app/src/environments/environment.ts",
-              "with": "apps/my-dir/my-app/src/environments/environment.prod.ts",
             },
           ],
           "outputHashing": "all",
         },
       },
       "defaultConfiguration": "production",
-      "options": Object {
-        "assets": Array [
-          "apps/my-dir/my-app/src/favicon.ico",
-          "apps/my-dir/my-app/src/assets",
+      "executor": "@angular-devkit/build-angular:application",
+      "options": {
+        "assets": [
+          {
+            "glob": "**/*",
+            "input": "apps/my-dir/my-app/public",
+          },
         ],
+        "browser": "apps/my-dir/my-app/src/main.ts",
         "index": "apps/my-dir/my-app/src/index.html",
-        "main": "apps/my-dir/my-app/src/main.ts",
         "outputPath": "dist/apps/my-dir/my-app",
-        "polyfills": "apps/my-dir/my-app/src/polyfills.ts",
-        "scripts": Array [],
-        "styles": Array [
+        "polyfills": [
+          "zone.js",
+        ],
+        "scripts": [],
+        "styles": [
           "apps/my-dir/my-app/src/styles.css",
         ],
         "tsConfig": "apps/my-dir/my-app/tsconfig.app.json",
       },
-      "outputs": Array [
+      "outputs": [
         "{options.outputPath}",
       ],
     },
-    "extract-i18n": Object {
-      "builder": "@angular-devkit/build-angular:extract-i18n",
-      "options": Object {
-        "browserTarget": "my-dir-my-app:build",
+    "extract-i18n": {
+      "executor": "@angular-devkit/build-angular:extract-i18n",
+      "options": {
+        "buildTarget": "my-dir-my-app:build",
       },
     },
-    "lint": Object {
-      "builder": "@nrwl/linter:eslint",
-      "options": Object {
-        "lintFilePatterns": Array [
-          "apps/my-dir/my-app/src/**/*.ts",
-          "apps/my-dir/my-app/src/**/*.html",
-        ],
-      },
+    "lint": {
+      "executor": "@nx/eslint:lint",
     },
-    "serve": Object {
-      "builder": "@angular-devkit/build-angular:dev-server",
-      "configurations": Object {
-        "development": Object {
-          "browserTarget": "my-dir-my-app:build:development",
+    "serve": {
+      "configurations": {
+        "development": {
+          "buildTarget": "my-dir-my-app:build:development",
         },
-        "production": Object {
-          "browserTarget": "my-dir-my-app:build:production",
+        "production": {
+          "buildTarget": "my-dir-my-app:build:production",
         },
       },
       "defaultConfiguration": "development",
+      "executor": "@angular-devkit/build-angular:dev-server",
     },
-    "test": Object {
-      "builder": "@nrwl/jest:jest",
-      "options": Object {
-        "jestConfig": "apps/my-dir/my-app/jest.config.js",
-        "passWithNoTests": true,
+    "serve-static": {
+      "executor": "@nx/web:file-server",
+      "options": {
+        "buildTarget": "my-dir-my-app:build",
+        "port": 4200,
+        "spa": true,
+        "staticFilePath": "dist/apps/my-dir/my-app/browser",
       },
-      "outputs": Array [
-        "coverage/apps/my-dir/my-app",
+    },
+    "test": {
+      "executor": "@nx/jest:jest",
+      "options": {
+        "jestConfig": "apps/my-dir/my-app/jest.config.ts",
+      },
+      "outputs": [
+        "{workspaceRoot}/coverage/{projectRoot}",
       ],
     },
   },
-  "prefix": "proj",
-  "projectType": "application",
-  "root": "apps/my-dir/my-app",
-  "sourceRoot": "apps/my-dir/my-app/src",
-  "tags": Array [],
 }
 `;
 
-exports[`app nested should update workspace.json 2`] = `
-Object {
-  "architect": Object {
-    "e2e": Object {
-      "builder": "@nrwl/cypress:cypress",
-      "configurations": Object {
-        "production": Object {
-          "devServerTarget": "my-dir-my-app:serve:production",
-        },
-      },
-      "options": Object {
-        "cypressConfig": "apps/my-dir/my-app-e2e/cypress.json",
-        "devServerTarget": "my-dir-my-app:serve:development",
-      },
-    },
-    "lint": Object {
-      "builder": "@nrwl/linter:eslint",
-      "options": Object {
-        "lintFilePatterns": Array [
-          "apps/my-dir/my-app-e2e/**/*.{js,ts}",
-        ],
-      },
-      "outputs": Array [
-        "{options.outputFile}",
-      ],
-    },
-  },
-  "implicitDependencies": Array [
+exports[`app --project-name-and-root-format=derived should generate correctly when directory is provided 2`] = `
+{
+  "$schema": "../../../node_modules/nx/schemas/project-schema.json",
+  "implicitDependencies": [
     "my-dir-my-app",
   ],
+  "name": "my-dir-my-app-e2e",
   "projectType": "application",
   "root": "apps/my-dir/my-app-e2e",
   "sourceRoot": "apps/my-dir/my-app-e2e/src",
-  "tags": Array [],
+  "tags": [],
+  "targets": {},
 }
 `;
 
-exports[`app not nested should generate files 1`] = `
-Object {
-  "angularCompilerOptions": Object {
+exports[`app --project-name-and-root-format=derived should generate correctly when directory is provided: e2e tsconfig.json 1`] = `
+{
+  "compilerOptions": {
+    "allowJs": true,
+    "forceConsistentCasingInFileNames": true,
+    "module": "commonjs",
+    "noFallthroughCasesInSwitch": true,
+    "noImplicitOverride": true,
+    "noImplicitReturns": true,
+    "noPropertyAccessFromIndexSignature": true,
+    "outDir": "../../../dist/out-tsc",
+    "sourceMap": false,
+    "strict": true,
+    "types": [
+      "cypress",
+      "node",
+    ],
+  },
+  "extends": "../../../tsconfig.base.json",
+  "include": [
+    "**/*.ts",
+    "**/*.js",
+    "cypress.config.ts",
+    "**/*.cy.ts",
+    "**/*.cy.js",
+    "**/*.d.ts",
+  ],
+}
+`;
+
+exports[`app --project-name-and-root-format=derived should generate correctly when directory is provided: tsconfig.app.json 1`] = `
+{
+  "compilerOptions": {
+    "outDir": "../../../dist/out-tsc",
+    "types": [],
+  },
+  "exclude": [
+    "jest.config.ts",
+    "src/**/*.test.ts",
+    "src/**/*.spec.ts",
+  ],
+  "extends": "./tsconfig.json",
+  "files": [
+    "src/main.ts",
+  ],
+  "include": [
+    "src/**/*.d.ts",
+  ],
+}
+`;
+
+exports[`app --project-name-and-root-format=derived should generate correctly when directory is provided: tsconfig.json 1`] = `
+{
+  "angularCompilerOptions": {
+    "enableI18nLegacyMessageIdFormat": false,
     "strictInjectionParameters": true,
     "strictInputAccessModifiers": true,
     "strictTemplates": true,
   },
-  "compilerOptions": Object {
+  "compilerOptions": {
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "noFallthroughCasesInSwitch": true,
+    "noImplicitOverride": true,
+    "noImplicitReturns": true,
+    "noPropertyAccessFromIndexSignature": true,
+    "strict": true,
+    "target": "es2022",
+    "useDefineForClassFields": false,
+  },
+  "extends": "../../../tsconfig.base.json",
+  "files": [],
+  "include": [],
+  "references": [
+    {
+      "path": "./tsconfig.editor.json",
+    },
+    {
+      "path": "./tsconfig.app.json",
+    },
+    {
+      "path": "./tsconfig.spec.json",
+    },
+  ],
+}
+`;
+
+exports[`app --project-name-and-root-format=derived should generate correctly when no directory is provided 1`] = `
+{
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "name": "my-app",
+  "prefix": "app",
+  "projectType": "application",
+  "root": "apps/my-app",
+  "sourceRoot": "apps/my-app/src",
+  "tags": [],
+  "targets": {
+    "build": {
+      "configurations": {
+        "development": {
+          "extractLicenses": false,
+          "optimization": false,
+          "sourceMap": true,
+        },
+        "production": {
+          "budgets": [
+            {
+              "maximumError": "1mb",
+              "maximumWarning": "500kb",
+              "type": "initial",
+            },
+            {
+              "maximumError": "4kb",
+              "maximumWarning": "2kb",
+              "type": "anyComponentStyle",
+            },
+          ],
+          "outputHashing": "all",
+        },
+      },
+      "defaultConfiguration": "production",
+      "executor": "@angular-devkit/build-angular:application",
+      "options": {
+        "assets": [
+          {
+            "glob": "**/*",
+            "input": "apps/my-app/public",
+          },
+        ],
+        "browser": "apps/my-app/src/main.ts",
+        "index": "apps/my-app/src/index.html",
+        "outputPath": "dist/apps/my-app",
+        "polyfills": [
+          "zone.js",
+        ],
+        "scripts": [],
+        "styles": [
+          "apps/my-app/src/styles.css",
+        ],
+        "tsConfig": "apps/my-app/tsconfig.app.json",
+      },
+      "outputs": [
+        "{options.outputPath}",
+      ],
+    },
+    "extract-i18n": {
+      "executor": "@angular-devkit/build-angular:extract-i18n",
+      "options": {
+        "buildTarget": "my-app:build",
+      },
+    },
+    "lint": {
+      "executor": "@nx/eslint:lint",
+    },
+    "serve": {
+      "configurations": {
+        "development": {
+          "buildTarget": "my-app:build:development",
+        },
+        "production": {
+          "buildTarget": "my-app:build:production",
+        },
+      },
+      "defaultConfiguration": "development",
+      "executor": "@angular-devkit/build-angular:dev-server",
+    },
+    "serve-static": {
+      "executor": "@nx/web:file-server",
+      "options": {
+        "buildTarget": "my-app:build",
+        "port": 4200,
+        "spa": true,
+        "staticFilePath": "dist/apps/my-app/browser",
+      },
+    },
+    "test": {
+      "executor": "@nx/jest:jest",
+      "options": {
+        "jestConfig": "apps/my-app/jest.config.ts",
+      },
+      "outputs": [
+        "{workspaceRoot}/coverage/{projectRoot}",
+      ],
+    },
+  },
+}
+`;
+
+exports[`app --project-name-and-root-format=derived should generate correctly when no directory is provided 2`] = `
+{
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "implicitDependencies": [
+    "my-app",
+  ],
+  "name": "my-app-e2e",
+  "projectType": "application",
+  "root": "apps/my-app-e2e",
+  "sourceRoot": "apps/my-app-e2e/src",
+  "tags": [],
+  "targets": {},
+}
+`;
+
+exports[`app --project-name-and-root-format=derived should generate correctly when no directory is provided: e2e tsconfig.json 1`] = `
+{
+  "compilerOptions": {
     "allowJs": true,
     "forceConsistentCasingInFileNames": true,
+    "module": "commonjs",
     "noFallthroughCasesInSwitch": true,
     "noImplicitOverride": true,
     "noImplicitReturns": true,
@@ -411,154 +538,716 @@ Object {
     "outDir": "../../dist/out-tsc",
     "sourceMap": false,
     "strict": true,
-    "types": Array [
+    "types": [
       "cypress",
       "node",
     ],
   },
   "extends": "../../tsconfig.base.json",
-  "include": Array [
-    "src/**/*.ts",
-    "src/**/*.js",
+  "include": [
+    "**/*.ts",
+    "**/*.js",
+    "cypress.config.ts",
+    "**/*.cy.ts",
+    "**/*.cy.js",
+    "**/*.d.ts",
   ],
 }
 `;
 
-exports[`app not nested should update workspace.json 1`] = `
-Object {
-  "architect": Object {
-    "build": Object {
-      "builder": "@angular-devkit/build-angular:browser",
-      "configurations": Object {
-        "development": Object {
-          "buildOptimizer": false,
+exports[`app --project-name-and-root-format=derived should generate correctly when no directory is provided: tsconfig.app.json 1`] = `
+{
+  "compilerOptions": {
+    "outDir": "../../dist/out-tsc",
+    "types": [],
+  },
+  "exclude": [
+    "jest.config.ts",
+    "src/**/*.test.ts",
+    "src/**/*.spec.ts",
+  ],
+  "extends": "./tsconfig.json",
+  "files": [
+    "src/main.ts",
+  ],
+  "include": [
+    "src/**/*.d.ts",
+  ],
+}
+`;
+
+exports[`app --project-name-and-root-format=derived should generate correctly when no directory is provided: tsconfig.json 1`] = `
+{
+  "angularCompilerOptions": {
+    "enableI18nLegacyMessageIdFormat": false,
+    "strictInjectionParameters": true,
+    "strictInputAccessModifiers": true,
+    "strictTemplates": true,
+  },
+  "compilerOptions": {
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "noFallthroughCasesInSwitch": true,
+    "noImplicitOverride": true,
+    "noImplicitReturns": true,
+    "noPropertyAccessFromIndexSignature": true,
+    "strict": true,
+    "target": "es2022",
+    "useDefineForClassFields": false,
+  },
+  "extends": "../../tsconfig.base.json",
+  "files": [],
+  "include": [],
+  "references": [
+    {
+      "path": "./tsconfig.editor.json",
+    },
+    {
+      "path": "./tsconfig.app.json",
+    },
+    {
+      "path": "./tsconfig.spec.json",
+    },
+  ],
+}
+`;
+
+exports[`app --standalone should generate a standalone app correctly with routing 1`] = `
+"import { bootstrapApplication } from '@angular/platform-browser';
+import { appConfig } from './app/app.config';
+import { AppComponent } from './app/app.component';
+
+bootstrapApplication(AppComponent, appConfig).catch((err) =>
+  console.error(err)
+);
+"
+`;
+
+exports[`app --standalone should generate a standalone app correctly with routing 2`] = `
+"import { ApplicationConfig, provideZoneChangeDetection } from '@angular/core';
+import { provideRouter } from '@angular/router';
+import { appRoutes } from './app.routes';
+
+export const appConfig: ApplicationConfig = {
+  providers: [provideZoneChangeDetection({ eventCoalescing: true }), provideRouter(appRoutes) ]
+};
+"
+`;
+
+exports[`app --standalone should generate a standalone app correctly with routing 3`] = `
+"import { Route } from '@angular/router';
+
+export const appRoutes: Route[] = [];
+"
+`;
+
+exports[`app --standalone should generate a standalone app correctly with routing 4`] = `
+"import { Component } from '@angular/core';
+import { RouterModule } from '@angular/router';
+import { NxWelcomeComponent } from './nx-welcome.component';
+
+@Component({
+  standalone: true,
+  imports: [NxWelcomeComponent, RouterModule],
+  selector: 'app-root',
+  templateUrl: './app.component.html',
+  styleUrl: './app.component.css',
+})
+export class AppComponent {
+  title = 'standalone';
+}
+"
+`;
+
+exports[`app --standalone should generate a standalone app correctly with routing 5`] = `
+"import { TestBed } from '@angular/core/testing';
+import { AppComponent } from './app.component';
+import { NxWelcomeComponent } from './nx-welcome.component';
+import { RouterTestingModule } from '@angular/router/testing';
+
+describe('AppComponent', () => {
+  beforeEach(async () => {
+    await TestBed.configureTestingModule({
+      imports: [AppComponent, NxWelcomeComponent, RouterTestingModule],
+    }).compileComponents();
+  });
+
+  it('should render title', () => {
+    const fixture = TestBed.createComponent(AppComponent);
+    fixture.detectChanges();
+    const compiled = fixture.nativeElement as HTMLElement;
+    expect(compiled.querySelector('h1')?.textContent).toContain(
+      'Welcome standalone'
+    );
+  });
+
+  it(\`should have as title 'standalone'\`, () => {
+    const fixture = TestBed.createComponent(AppComponent);
+    const app = fixture.componentInstance;
+    expect(app.title).toEqual('standalone');
+  });
+});
+"
+`;
+
+exports[`app --standalone should generate a standalone app correctly without routing 1`] = `
+"import { bootstrapApplication } from '@angular/platform-browser';
+import { appConfig } from './app/app.config';
+import { AppComponent } from './app/app.component';
+
+bootstrapApplication(AppComponent, appConfig).catch((err) =>
+  console.error(err)
+);
+"
+`;
+
+exports[`app --standalone should generate a standalone app correctly without routing 2`] = `
+"import { ApplicationConfig, provideZoneChangeDetection } from '@angular/core';
+
+export const appConfig: ApplicationConfig = {
+  providers: [provideZoneChangeDetection({ eventCoalescing: true }), ]
+};
+"
+`;
+
+exports[`app --standalone should generate a standalone app correctly without routing 3`] = `
+"import { Component } from '@angular/core';
+import { NxWelcomeComponent } from './nx-welcome.component';
+
+@Component({
+  standalone: true,
+  imports: [NxWelcomeComponent, ],
+  selector: 'app-root',
+  templateUrl: './app.component.html',
+  styleUrl: './app.component.css',
+})
+export class AppComponent {
+  title = 'standalone';
+}
+"
+`;
+
+exports[`app --standalone should generate a standalone app correctly without routing 4`] = `
+"import { TestBed } from '@angular/core/testing';
+import { AppComponent } from './app.component';
+import { NxWelcomeComponent } from './nx-welcome.component';
+
+describe('AppComponent', () => {
+  beforeEach(async () => {
+    await TestBed.configureTestingModule({
+      imports: [AppComponent, NxWelcomeComponent],
+    }).compileComponents();
+  });
+
+  it('should render title', () => {
+    const fixture = TestBed.createComponent(AppComponent);
+    fixture.detectChanges();
+    const compiled = fixture.nativeElement as HTMLElement;
+    expect(compiled.querySelector('h1')?.textContent).toContain(
+      'Welcome standalone'
+    );
+  });
+
+  it(\`should have as title 'standalone'\`, () => {
+    const fixture = TestBed.createComponent(AppComponent);
+    const app = fixture.componentInstance;
+    expect(app.title).toEqual('standalone');
+  });
+});
+"
+`;
+
+exports[`app --standalone should should not use event coalescing in versions lower than v18 1`] = `
+"import { ApplicationConfig } from '@angular/core';
+import { provideRouter } from '@angular/router';
+import { appRoutes } from './app.routes';
+
+export const appConfig: ApplicationConfig = {
+  providers: [provideRouter(appRoutes) ]
+};
+"
+`;
+
+exports[`app --strict should enable strict type checking: app tsconfig.json 1`] = `
+{
+  "angularCompilerOptions": {
+    "enableI18nLegacyMessageIdFormat": false,
+    "strictInjectionParameters": true,
+    "strictInputAccessModifiers": true,
+    "strictTemplates": true,
+  },
+  "compilerOptions": {
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "noFallthroughCasesInSwitch": true,
+    "noImplicitOverride": true,
+    "noImplicitReturns": true,
+    "noPropertyAccessFromIndexSignature": true,
+    "strict": true,
+    "target": "es2022",
+    "useDefineForClassFields": false,
+  },
+  "extends": "../tsconfig.base.json",
+  "files": [],
+  "include": [],
+  "references": [
+    {
+      "path": "./tsconfig.editor.json",
+    },
+    {
+      "path": "./tsconfig.app.json",
+    },
+    {
+      "path": "./tsconfig.spec.json",
+    },
+  ],
+}
+`;
+
+exports[`app --strict should enable strict type checking: e2e tsconfig.json 1`] = `
+{
+  "compilerOptions": {
+    "allowJs": true,
+    "forceConsistentCasingInFileNames": true,
+    "module": "commonjs",
+    "noFallthroughCasesInSwitch": true,
+    "noImplicitOverride": true,
+    "noImplicitReturns": true,
+    "noPropertyAccessFromIndexSignature": true,
+    "outDir": "../dist/out-tsc",
+    "sourceMap": false,
+    "strict": true,
+    "types": [
+      "cypress",
+      "node",
+    ],
+  },
+  "extends": "../tsconfig.base.json",
+  "include": [
+    "**/*.ts",
+    "**/*.js",
+    "cypress.config.ts",
+    "**/*.cy.ts",
+    "**/*.cy.js",
+    "**/*.d.ts",
+  ],
+}
+`;
+
+exports[`app angular compat support should import "ApplicationConfig" from "@angular/platform-browser" 1`] = `
+"import { ApplicationConfig } from '@angular/core';
+import { provideRouter } from '@angular/router';
+import { appRoutes } from './app.routes';
+
+export const appConfig: ApplicationConfig = {
+  providers: [provideRouter(appRoutes) ]
+};
+"
+`;
+
+exports[`app at the root should accept numbers in the path 1`] = `"src/9-websites/my-app"`;
+
+exports[`app format files should format files 1`] = `
+"import { NgModule } from '@angular/core';
+import { BrowserModule } from '@angular/platform-browser';
+import { RouterModule } from '@angular/router';
+import { AppComponent } from './app.component';
+import { appRoutes } from './app.routes';
+import { NxWelcomeComponent } from './nx-welcome.component';
+
+@NgModule({
+  declarations: [AppComponent, NxWelcomeComponent],
+  imports: [BrowserModule, RouterModule.forRoot(appRoutes)],
+  providers: [],
+  bootstrap: [AppComponent],
+})
+export class AppModule {}
+"
+`;
+
+exports[`app format files should format files 2`] = `
+"import { Component } from '@angular/core';
+
+@Component({
+  selector: 'app-root',
+  templateUrl: './app.component.html',
+  styleUrl: './app.component.css',
+})
+export class AppComponent {
+  title = 'my-app';
+}
+"
+`;
+
+exports[`app format files should format files 3`] = `
+"import { TestBed } from '@angular/core/testing';
+import { AppComponent } from './app.component';
+import { NxWelcomeComponent } from './nx-welcome.component';
+import { RouterTestingModule } from '@angular/router/testing';
+
+describe('AppComponent', () => {
+  beforeEach(async () => {
+    await TestBed.configureTestingModule({
+      imports: [RouterTestingModule],
+      declarations: [AppComponent, NxWelcomeComponent],
+    }).compileComponents();
+  });
+
+  it('should render title', () => {
+    const fixture = TestBed.createComponent(AppComponent);
+    fixture.detectChanges();
+    const compiled = fixture.nativeElement as HTMLElement;
+    expect(compiled.querySelector('h1')?.textContent).toContain(
+      'Welcome my-app'
+    );
+  });
+
+  it(\`should have as title 'my-app'\`, () => {
+    const fixture = TestBed.createComponent(AppComponent);
+    const app = fixture.componentInstance;
+    expect(app.title).toEqual('my-app');
+  });
+});
+"
+`;
+
+exports[`app format files should format files 4`] = `
+"import { Route } from '@angular/router';
+
+export const appRoutes: Route[] = [];
+"
+`;
+
+exports[`app nested should create project configs 1`] = `
+{
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "name": "my-app",
+  "prefix": "app",
+  "projectType": "application",
+  "root": "my-dir/my-app",
+  "sourceRoot": "my-dir/my-app/src",
+  "tags": [],
+  "targets": {
+    "build": {
+      "configurations": {
+        "development": {
           "extractLicenses": false,
-          "namedChunks": true,
           "optimization": false,
           "sourceMap": true,
-          "vendorChunk": true,
         },
-        "production": Object {
-          "budgets": Array [
-            Object {
+        "production": {
+          "budgets": [
+            {
               "maximumError": "1mb",
               "maximumWarning": "500kb",
               "type": "initial",
             },
-            Object {
+            {
               "maximumError": "4kb",
               "maximumWarning": "2kb",
               "type": "anyComponentStyle",
-            },
-          ],
-          "fileReplacements": Array [
-            Object {
-              "replace": "apps/my-app/src/environments/environment.ts",
-              "with": "apps/my-app/src/environments/environment.prod.ts",
             },
           ],
           "outputHashing": "all",
         },
       },
       "defaultConfiguration": "production",
-      "options": Object {
-        "assets": Array [
-          "apps/my-app/src/favicon.ico",
-          "apps/my-app/src/assets",
+      "executor": "@angular-devkit/build-angular:application",
+      "options": {
+        "assets": [
+          {
+            "glob": "**/*",
+            "input": "my-dir/my-app/public",
+          },
         ],
-        "index": "apps/my-app/src/index.html",
-        "main": "apps/my-app/src/main.ts",
-        "outputPath": "dist/apps/my-app",
-        "polyfills": "apps/my-app/src/polyfills.ts",
-        "scripts": Array [],
-        "styles": Array [
-          "apps/my-app/src/styles.css",
+        "browser": "my-dir/my-app/src/main.ts",
+        "index": "my-dir/my-app/src/index.html",
+        "outputPath": "dist/my-dir/my-app",
+        "polyfills": [
+          "zone.js",
         ],
-        "tsConfig": "apps/my-app/tsconfig.app.json",
+        "scripts": [],
+        "styles": [
+          "my-dir/my-app/src/styles.css",
+        ],
+        "tsConfig": "my-dir/my-app/tsconfig.app.json",
       },
-      "outputs": Array [
+      "outputs": [
         "{options.outputPath}",
       ],
     },
-    "extract-i18n": Object {
-      "builder": "@angular-devkit/build-angular:extract-i18n",
-      "options": Object {
-        "browserTarget": "my-app:build",
+    "extract-i18n": {
+      "executor": "@angular-devkit/build-angular:extract-i18n",
+      "options": {
+        "buildTarget": "my-app:build",
       },
     },
-    "lint": Object {
-      "builder": "@nrwl/linter:eslint",
-      "options": Object {
-        "lintFilePatterns": Array [
-          "apps/my-app/src/**/*.ts",
-          "apps/my-app/src/**/*.html",
-        ],
-      },
+    "lint": {
+      "executor": "@nx/eslint:lint",
     },
-    "serve": Object {
-      "builder": "@angular-devkit/build-angular:dev-server",
-      "configurations": Object {
-        "development": Object {
-          "browserTarget": "my-app:build:development",
+    "serve": {
+      "configurations": {
+        "development": {
+          "buildTarget": "my-app:build:development",
         },
-        "production": Object {
-          "browserTarget": "my-app:build:production",
+        "production": {
+          "buildTarget": "my-app:build:production",
         },
       },
       "defaultConfiguration": "development",
+      "executor": "@angular-devkit/build-angular:dev-server",
     },
-    "test": Object {
-      "builder": "@nrwl/jest:jest",
-      "options": Object {
-        "jestConfig": "apps/my-app/jest.config.js",
-        "passWithNoTests": true,
+    "serve-static": {
+      "executor": "@nx/web:file-server",
+      "options": {
+        "buildTarget": "my-app:build",
+        "port": 4200,
+        "spa": true,
+        "staticFilePath": "dist/my-dir/my-app/browser",
       },
-      "outputs": Array [
-        "coverage/apps/my-app",
+    },
+    "test": {
+      "executor": "@nx/jest:jest",
+      "options": {
+        "jestConfig": "my-dir/my-app/jest.config.ts",
+      },
+      "outputs": [
+        "{workspaceRoot}/coverage/{projectRoot}",
       ],
     },
   },
-  "prefix": "proj",
-  "projectType": "application",
-  "root": "apps/my-app",
-  "sourceRoot": "apps/my-app/src",
-  "tags": Array [],
 }
 `;
 
-exports[`app not nested should update workspace.json 2`] = `
-Object {
-  "architect": Object {
-    "e2e": Object {
-      "builder": "@nrwl/cypress:cypress",
-      "configurations": Object {
-        "production": Object {
-          "devServerTarget": "my-app:serve:production",
+exports[`app nested should create project configs 2`] = `
+{
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "implicitDependencies": [
+    "my-app",
+  ],
+  "name": "my-app-e2e",
+  "projectType": "application",
+  "root": "my-dir/my-app-e2e",
+  "sourceRoot": "my-dir/my-app-e2e/src",
+  "tags": [],
+  "targets": {},
+}
+`;
+
+exports[`app not nested should create project configs 1`] = `
+{
+  "$schema": "../node_modules/nx/schemas/project-schema.json",
+  "name": "my-app",
+  "prefix": "app",
+  "projectType": "application",
+  "root": "my-app",
+  "sourceRoot": "my-app/src",
+  "tags": [],
+  "targets": {
+    "build": {
+      "configurations": {
+        "development": {
+          "extractLicenses": false,
+          "optimization": false,
+          "sourceMap": true,
+        },
+        "production": {
+          "budgets": [
+            {
+              "maximumError": "1mb",
+              "maximumWarning": "500kb",
+              "type": "initial",
+            },
+            {
+              "maximumError": "4kb",
+              "maximumWarning": "2kb",
+              "type": "anyComponentStyle",
+            },
+          ],
+          "outputHashing": "all",
         },
       },
-      "options": Object {
-        "cypressConfig": "apps/my-app-e2e/cypress.json",
-        "devServerTarget": "my-app:serve:development",
+      "defaultConfiguration": "production",
+      "executor": "@angular-devkit/build-angular:application",
+      "options": {
+        "assets": [
+          {
+            "glob": "**/*",
+            "input": "my-app/public",
+          },
+        ],
+        "browser": "my-app/src/main.ts",
+        "index": "my-app/src/index.html",
+        "outputPath": "dist/my-app",
+        "polyfills": [
+          "zone.js",
+        ],
+        "scripts": [],
+        "styles": [
+          "my-app/src/styles.css",
+        ],
+        "tsConfig": "my-app/tsconfig.app.json",
+      },
+      "outputs": [
+        "{options.outputPath}",
+      ],
+    },
+    "extract-i18n": {
+      "executor": "@angular-devkit/build-angular:extract-i18n",
+      "options": {
+        "buildTarget": "my-app:build",
       },
     },
-    "lint": Object {
-      "builder": "@nrwl/linter:eslint",
-      "options": Object {
-        "lintFilePatterns": Array [
-          "apps/my-app-e2e/**/*.{js,ts}",
-        ],
+    "lint": {
+      "executor": "@nx/eslint:lint",
+    },
+    "serve": {
+      "configurations": {
+        "development": {
+          "buildTarget": "my-app:build:development",
+        },
+        "production": {
+          "buildTarget": "my-app:build:production",
+        },
       },
-      "outputs": Array [
-        "{options.outputFile}",
+      "defaultConfiguration": "development",
+      "executor": "@angular-devkit/build-angular:dev-server",
+    },
+    "serve-static": {
+      "executor": "@nx/web:file-server",
+      "options": {
+        "buildTarget": "my-app:build",
+        "port": 4200,
+        "spa": true,
+        "staticFilePath": "dist/my-app/browser",
+      },
+    },
+    "test": {
+      "executor": "@nx/jest:jest",
+      "options": {
+        "jestConfig": "my-app/jest.config.ts",
+      },
+      "outputs": [
+        "{workspaceRoot}/coverage/{projectRoot}",
       ],
     },
   },
-  "implicitDependencies": Array [
+}
+`;
+
+exports[`app not nested should create project configs 2`] = `
+{
+  "$schema": "../node_modules/nx/schemas/project-schema.json",
+  "implicitDependencies": [
     "my-app",
   ],
+  "name": "my-app-e2e",
   "projectType": "application",
-  "root": "apps/my-app-e2e",
-  "sourceRoot": "apps/my-app-e2e/src",
-  "tags": Array [],
+  "root": "my-app-e2e",
+  "sourceRoot": "my-app-e2e/src",
+  "tags": [],
+  "targets": {},
+}
+`;
+
+exports[`app not nested should generate files: e2e tsconfig.json 1`] = `
+{
+  "compilerOptions": {
+    "allowJs": true,
+    "forceConsistentCasingInFileNames": true,
+    "module": "commonjs",
+    "noFallthroughCasesInSwitch": true,
+    "noImplicitOverride": true,
+    "noImplicitReturns": true,
+    "noPropertyAccessFromIndexSignature": true,
+    "outDir": "../dist/out-tsc",
+    "sourceMap": false,
+    "strict": true,
+    "types": [
+      "cypress",
+      "node",
+    ],
+  },
+  "extends": "../tsconfig.base.json",
+  "include": [
+    "**/*.ts",
+    "**/*.js",
+    "cypress.config.ts",
+    "**/*.cy.ts",
+    "**/*.cy.js",
+    "**/*.d.ts",
+  ],
+}
+`;
+
+exports[`app not nested should generate files: tsconfig.app.json 1`] = `
+{
+  "compilerOptions": {
+    "outDir": "../dist/out-tsc",
+    "types": [],
+  },
+  "exclude": [
+    "jest.config.ts",
+    "src/**/*.test.ts",
+    "src/**/*.spec.ts",
+  ],
+  "extends": "./tsconfig.json",
+  "files": [
+    "src/main.ts",
+  ],
+  "include": [
+    "src/**/*.d.ts",
+  ],
+}
+`;
+
+exports[`app not nested should generate files: tsconfig.json 1`] = `
+{
+  "angularCompilerOptions": {
+    "enableI18nLegacyMessageIdFormat": false,
+    "strictInjectionParameters": true,
+    "strictInputAccessModifiers": true,
+    "strictTemplates": true,
+  },
+  "compilerOptions": {
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "noFallthroughCasesInSwitch": true,
+    "noImplicitOverride": true,
+    "noImplicitReturns": true,
+    "noPropertyAccessFromIndexSignature": true,
+    "strict": true,
+    "target": "es2022",
+    "useDefineForClassFields": false,
+  },
+  "extends": "../tsconfig.base.json",
+  "files": [],
+  "include": [],
+  "references": [
+    {
+      "path": "./tsconfig.editor.json",
+    },
+    {
+      "path": "./tsconfig.app.json",
+    },
+    {
+      "path": "./tsconfig.spec.json",
+    },
+  ],
+}
+`;
+
+exports[`app should generate correct tsconfig.editor.json 1`] = `
+{
+  "compilerOptions": {},
+  "exclude": [
+    "jest.config.ts",
+    "src/**/*.test.ts",
+    "src/**/*.spec.ts",
+  ],
+  "extends": "./tsconfig.json",
+  "include": [
+    "src/**/*.ts",
+  ],
 }
 `;

@@ -6,6 +6,13 @@
     "declaration": true,
     "types": ["node"]
   },
-  "exclude": ["**/*.spec.ts", "**/*.test.ts", "**/*_spec.ts", "**/*_test.ts"],
+  "exclude": [
+    "**/*.spec.ts",
+    "**/*.test.ts",
+    "**/*_spec.ts",
+    "**/*_test.ts",
+    "internal-testing-utils.ts",
+    "jest.config.ts"
+  ],
   "include": ["**/*.ts"]
 }

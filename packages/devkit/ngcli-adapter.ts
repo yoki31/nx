@@ -1,9 +1,9 @@
 /**
  * @category Ng CLI Adapter
  */
+// eslint-disable-next-line @typescript-eslint/no-restricted-imports
 export {
   wrapAngularDevkitSchematic,
-  overrideCollectionResolutionForTesting,
   mockSchematicsForTesting,
   NxScopedHost,
-} from '@nrwl/tao/src/commands/ngcli-adapter';
+} from 'nx/src/adapter/ngcli-adapter';

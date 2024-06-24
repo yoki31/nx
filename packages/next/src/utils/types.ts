@@ -17,10 +17,9 @@ export interface NextServerOptions {
   dir: string;
   staticMarkup: boolean;
   quiet: boolean;
-  conf: any;
   port: number;
-  path: string;
   hostname: string;
+  customServer?: boolean;
 }
 
 export interface FileReplacement {
@@ -29,12 +28,17 @@ export interface FileReplacement {
 }
 
 export interface NextBuildBuilderOptions {
-  root: string;
   outputPath: string;
   fileReplacements: FileReplacement[];
   assets?: any[];
   nextConfig?: string;
   buildLibsFromSource?: boolean;
+  includeDevDependenciesInPackageJson?: boolean;
+  generateLockfile?: boolean;
+  watch?: boolean;
+  debug?: boolean;
+  profile?: boolean;
+  experimentalAppOnly?: boolean;
 }
 
 export interface NextServeBuilderOptions {
@@ -43,10 +47,16 @@ export interface NextServeBuilderOptions {
   staticMarkup: boolean;
   quiet: boolean;
   buildTarget: string;
-  customServerPath?: string;
+  customServerTarget?: string;
   hostname?: string;
-  proxyConfig?: string;
   buildLibsFromSource?: boolean;
+  keepAliveTimeout?: number;
+  turbo?: boolean;
+  experimentalHttps?: boolean;
+  experimentalHttpsKey?: string;
+  experimentalHttpsCert?: string;
+  experimentalHttpsCa?: string;
+  customServerHttps?: boolean;
 }
 
 export interface NextExportBuilderOptions {

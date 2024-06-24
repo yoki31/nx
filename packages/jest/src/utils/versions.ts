@@ -1,7 +1,9 @@
-export const nxVersion = '*';
-export const jestVersion = '27.2.3';
-export const jestTypesVersion = '27.0.2';
-export const tslibVersion = '^2.0.0';
-export const tsJestVersion = '27.0.5';
-export const babelJestVersion = '27.2.3';
-export const swcJestVersion = '0.2.15';
+export const nxVersion = require('../../package.json').version;
+export const jestVersion = '^29.4.1';
+export const babelJestVersion = '^29.4.1';
+export const jestTypesVersion = '^29.4.0';
+export const tsJestVersion = '^29.1.0';
+export const tslibVersion = '^2.3.0';
+export const swcJestVersion = '~0.2.36';
+export const typesNodeVersion = '18.16.9';
+export const tsNodeVersion = '10.9.1';

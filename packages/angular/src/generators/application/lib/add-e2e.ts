@@ -1,68 +1,103 @@
-import type { Tree } from '@nrwl/devkit';
+import type { Tree } from '@nx/devkit';
+import {
+  addDependenciesToPackageJson,
+  addProjectConfiguration,
+  ensurePackage,
+  getPackageManagerCommand,
+  joinPathFragments,
+  readNxJson,
+  readProjectConfiguration,
+  updateProjectConfiguration,
+} from '@nx/devkit';
+import { nxVersion } from '../../../utils/versions';
+import { getInstalledAngularVersionInfo } from '../../utils/version-utils';
 import type { NormalizedSchema } from './normalized-schema';
 
-import { cypressProjectGenerator } from '@nrwl/cypress';
-
-import { E2eTestRunner } from '../../../utils/test-runners';
-
-import { addProtractor } from './add-protractor';
-import { removeScaffoldedE2e } from './remove-scaffolded-e2e';
-import { updateE2eProject } from './update-e2e-project';
-import { convertToNxProjectGenerator } from '@nrwl/workspace';
-import { Linter, lintProjectGenerator } from '@nrwl/linter';
-import { getWorkspaceLayout, joinPathFragments } from '@nrwl/devkit';
-
-/**
- * Add E2E Config
- *
- * @param tree Nx Devkit Virtual Tree
- * @param options Normalized Schema
- * @param e2eProjectRoot Raw E2E Project Root that Angular tries to write to
- *
- * @returns Function to run to add Cypres config after intial app files have been moved to correct location
- */
-export async function addE2e(
-  tree: Tree,
-  options: NormalizedSchema,
-  e2eProjectRoot: string
-) {
-  if (options.e2eTestRunner === E2eTestRunner.Protractor) {
-    await addProtractor(tree, options);
-  } else {
-    removeScaffoldedE2e(tree, options, e2eProjectRoot);
-  }
+export async function addE2e(tree: Tree, options: NormalizedSchema) {
+  // since e2e are separate projects, default to adding plugins
+  const nxJson = readNxJson(tree);
+  const addPlugin =
+    process.env.NX_ADD_PLUGINS !== 'false' &&
+    nxJson.useInferencePlugins !== false;
 
   if (options.e2eTestRunner === 'cypress') {
-    await cypressProjectGenerator(tree, {
-      name: options.e2eProjectName,
-      directory: options.directory,
-      project: options.name,
+    const { configurationGenerator } = ensurePackage<
+      typeof import('@nx/cypress')
+    >('@nx/cypress', nxVersion);
+    // TODO: This can call `@nx/web:static-config` generator when ready
+    addFileServerTarget(tree, options, 'serve-static');
+    addProjectConfiguration(tree, options.e2eProjectName, {
+      projectType: 'application',
+      root: options.e2eProjectRoot,
+      sourceRoot: joinPathFragments(options.e2eProjectRoot, 'src'),
+      targets: {},
+      tags: [],
+      implicitDependencies: [options.name],
+    });
+    await configurationGenerator(tree, {
+      project: options.e2eProjectName,
+      directory: 'src',
       linter: options.linter,
-      skipFormat: options.skipFormat,
-      standaloneConfig: options.standaloneConfig,
+      skipPackageJson: options.skipPackageJson,
+      skipFormat: true,
+      devServerTarget: `${options.name}:${options.e2eWebServerTarget}:development`,
+      baseUrl: options.e2eWebServerAddress,
+      rootProject: options.rootProject,
+      addPlugin,
+    });
+  } else if (options.e2eTestRunner === 'playwright') {
+    const { configurationGenerator } = ensurePackage<
+      typeof import('@nx/playwright')
+    >('@nx/playwright', nxVersion);
+    addProjectConfiguration(tree, options.e2eProjectName, {
+      projectType: 'application',
+      root: options.e2eProjectRoot,
+      sourceRoot: joinPathFragments(options.e2eProjectRoot, 'src'),
+      targets: {},
+      implicitDependencies: [options.name],
+    });
+    await configurationGenerator(tree, {
+      project: options.e2eProjectName,
+      skipFormat: true,
+      skipPackageJson: options.skipPackageJson,
+      directory: 'src',
+      js: false,
+      linter: options.linter,
+      setParserOptionsProject: options.setParserOptionsProject,
+      webServerCommand: `${getPackageManagerCommand().exec} nx ${
+        options.e2eWebServerTarget
+      } ${options.name}`,
+      webServerAddress: options.e2eWebServerAddress,
+      rootProject: options.rootProject,
+      addPlugin,
     });
   }
+}
 
-  if (options.e2eTestRunner === E2eTestRunner.Protractor) {
-    updateE2eProject(tree, options);
-    if (
-      options.standaloneConfig ??
-      getWorkspaceLayout(tree).standaloneAsDefault
-    ) {
-      await convertToNxProjectGenerator(tree, {
-        project: `${options.e2eProjectName}`,
-      });
-    }
-    if (options.linter === Linter.EsLint) {
-      await lintProjectGenerator(tree, {
-        project: options.e2eProjectName,
-        linter: options.linter,
-        eslintFilePatterns: [
-          joinPathFragments(options.e2eProjectRoot, '**/*.ts'),
-        ],
-        skipFormat: true,
-        setParserOptionsProject: options.setParserOptionsProject,
-      });
-    }
+function addFileServerTarget(
+  tree: Tree,
+  options: NormalizedSchema,
+  targetName: string
+) {
+  if (!options.skipPackageJson) {
+    addDependenciesToPackageJson(tree, {}, { '@nx/web': nxVersion });
   }
+
+  const { major: angularMajorVersion } = getInstalledAngularVersionInfo(tree);
+  const isUsingApplicationBuilder =
+    angularMajorVersion >= 17 && options.bundler === 'esbuild';
+
+  const projectConfig = readProjectConfiguration(tree, options.name);
+  projectConfig.targets[targetName] = {
+    executor: '@nx/web:file-server',
+    options: {
+      buildTarget: `${options.name}:build`,
+      port: options.e2ePort,
+      staticFilePath: isUsingApplicationBuilder
+        ? joinPathFragments(options.outputPath, 'browser')
+        : undefined,
+      spa: true,
+    },
+  };
+  updateProjectConfiguration(tree, options.name, projectConfig);
 }

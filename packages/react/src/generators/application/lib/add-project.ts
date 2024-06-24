@@ -4,53 +4,52 @@ import {
   joinPathFragments,
   ProjectConfiguration,
   TargetConfiguration,
-} from '@nrwl/devkit';
+  Tree,
+} from '@nx/devkit';
+import { hasWebpackPlugin } from '../../../utils/has-webpack-plugin';
+import { maybeJs } from '../../../utils/maybe-js';
 
-export function addProject(host, options: NormalizedSchema) {
+export function addProject(host: Tree, options: NormalizedSchema) {
   const project: ProjectConfiguration = {
     root: options.appProjectRoot,
     sourceRoot: `${options.appProjectRoot}/src`,
     projectType: 'application',
-    targets: {
-      build: createBuildTarget(options),
-      serve: createServeTarget(options),
-    },
+    targets: {},
     tags: options.parsedTags,
   };
 
-  addProjectConfiguration(
-    host,
-    options.projectName,
-    {
-      ...project,
-    },
-    options.standaloneConfig
-  );
-}
+  if (options.bundler === 'webpack') {
+    if (!hasWebpackPlugin(host) || !options.addPlugin) {
+      project.targets = {
+        build: createBuildTarget(options),
+        serve: createServeTarget(options),
+      };
+    }
+  }
 
-function maybeJs(options: NormalizedSchema, path: string): string {
-  return options.js && (path.endsWith('.ts') || path.endsWith('.tsx'))
-    ? path.replace(/\.tsx?$/, '.js')
-    : path;
+  addProjectConfiguration(host, options.projectName, {
+    ...project,
+  });
 }
 
 function createBuildTarget(options: NormalizedSchema): TargetConfiguration {
   return {
-    executor: '@nrwl/web:webpack',
+    executor: '@nx/webpack:webpack',
     outputs: ['{options.outputPath}'],
     defaultConfiguration: 'production',
     options: {
       compiler: options.compiler ?? 'babel',
-      outputPath: joinPathFragments('dist', options.appProjectRoot),
+      outputPath: joinPathFragments(
+        'dist',
+        options.appProjectRoot != '.'
+          ? options.appProjectRoot
+          : options.projectName
+      ),
       index: joinPathFragments(options.appProjectRoot, 'src/index.html'),
       baseHref: '/',
       main: joinPathFragments(
         options.appProjectRoot,
         maybeJs(options, `src/main.tsx`)
-      ),
-      polyfills: joinPathFragments(
-        options.appProjectRoot,
-        maybeJs(options, 'src/polyfills.ts')
       ),
       tsConfig: joinPathFragments(options.appProjectRoot, 'tsconfig.app.json'),
       assets: [
@@ -67,9 +66,18 @@ function createBuildTarget(options: NormalizedSchema): TargetConfiguration {
               ),
             ],
       scripts: [],
-      webpackConfig: '@nrwl/react/plugins/webpack',
+      webpackConfig: joinPathFragments(
+        options.appProjectRoot,
+        'webpack.config.js'
+      ),
     },
     configurations: {
+      development: {
+        extractLicenses: false,
+        optimization: false,
+        sourceMap: true,
+        vendorChunk: true,
+      },
       production: {
         fileReplacements: [
           {
@@ -96,12 +104,16 @@ function createBuildTarget(options: NormalizedSchema): TargetConfiguration {
 
 function createServeTarget(options: NormalizedSchema): TargetConfiguration {
   return {
-    executor: '@nrwl/web:dev-server',
+    executor: '@nx/webpack:dev-server',
+    defaultConfiguration: 'development',
     options: {
       buildTarget: `${options.projectName}:build`,
       hmr: true,
     },
     configurations: {
+      development: {
+        buildTarget: `${options.projectName}:build:development`,
+      },
       production: {
         buildTarget: `${options.projectName}:build:production`,
         hmr: false,

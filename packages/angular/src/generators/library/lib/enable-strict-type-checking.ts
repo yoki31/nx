@@ -1,9 +1,5 @@
-import type { Tree } from '@nrwl/devkit';
-import {
-  updateWorkspaceConfiguration,
-  readWorkspaceConfiguration,
-  updateJson,
-} from '@nrwl/devkit';
+import type { Tree } from '@nx/devkit';
+import { readNxJson, updateJson, updateNxJson } from '@nx/devkit';
 import { NormalizedSchema } from './normalized-schema';
 
 /**
@@ -11,7 +7,7 @@ import { NormalizedSchema } from './normalized-schema';
  * */
 export function enableStrictTypeChecking(
   host: Tree,
-  options: NormalizedSchema
+  options: NormalizedSchema['libraryOptions']
 ) {
   updateTsConfig(host, options);
 }
@@ -19,21 +15,24 @@ export function enableStrictTypeChecking(
 export function setLibraryStrictDefault(host: Tree, isStrict: boolean) {
   // set the default so future libraries use it
   // unless the user has previously set this value
-  const workspace = readWorkspaceConfiguration(host);
+  const nxJson = readNxJson(host);
 
-  workspace.generators = workspace.generators || {};
+  nxJson.generators = nxJson.generators || {};
 
-  workspace.generators['@nrwl/angular:library'] =
-    workspace.generators['@nrwl/angular:library'] || {};
+  nxJson.generators['@nx/angular:library'] =
+    nxJson.generators['@nx/angular:library'] || {};
 
-  workspace.generators['@nrwl/angular:library'].strict =
-    workspace.generators['@nrwl/angular:library'].strict ?? isStrict;
-  updateWorkspaceConfiguration(host, workspace);
+  nxJson.generators['@nx/angular:library'].strict =
+    nxJson.generators['@nx/angular:library'].strict ?? isStrict;
+  updateNxJson(host, nxJson);
 }
 
-function updateTsConfig(host: Tree, options: NormalizedSchema) {
+function updateTsConfig(
+  host: Tree,
+  options: NormalizedSchema['libraryOptions']
+) {
   // Update the settings in the tsconfig.app.json to enable strict type checking.
-  // This matches the settings defined by the Angular CLI https://angular.io/guide/strict-mode
+  // This matches the settings defined by the Angular CL https://angular.io/guide/strict-mode
   updateJson(host, `${options.projectRoot}/tsconfig.json`, (json) => {
     // update the TypeScript settings
     json.compilerOptions = {
@@ -49,6 +48,7 @@ function updateTsConfig(host: Tree, options: NormalizedSchema) {
     // update Angular Template Settings
     json.angularCompilerOptions = {
       ...(json.angularCompilerOptions ?? {}),
+      enableI18nLegacyMessageIdFormat: false,
       strictInjectionParameters: true,
       strictInputAccessModifiers: true,
       strictTemplates: true,

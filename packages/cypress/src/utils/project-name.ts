@@ -1,7 +1,7 @@
-import { names } from '@nrwl/devkit';
+import { names } from '@nx/devkit';
 
 export function getUnscopedLibName(libRoot: string) {
-  return libRoot.substr(libRoot.lastIndexOf('/') + 1);
+  return libRoot.slice(libRoot.lastIndexOf('/') + 1);
 }
 
 export function getE2eProjectName(

@@ -1,7 +1,8 @@
 {
-  "name": "@nrwl/workspace",
+  "name": "@nx/workspace",
   "version": "0.0.1",
-  "description": "Smart, Fast and Extensible Build System",
+  "private": false,
+  "description": "The Workspace plugin contains executors and generators that are useful for any Nx workspace. It should be present in every Nx workspace and other plugins build on it.",
   "repository": {
     "type": "git",
     "url": "https://github.com/nrwl/nx.git",
@@ -18,7 +19,7 @@
     "Cypress",
     "CLI"
   ],
-  "main": "./index.js",
+  "main": "./index",
   "typings": "./index.d.ts",
   "author": "Victor Savkin",
   "license": "MIT",
@@ -26,65 +27,47 @@
     "url": "https://github.com/nrwl/nx/issues"
   },
   "homepage": "https://nx.dev",
-  "schematics": "./generators.json",
-  "builders": "./executors.json",
+  "generators": "./generators.json",
+  "executors": "./executors.json",
   "ng-update": {
     "requirements": {},
     "migrations": "./migrations.json",
-    "packageGroup": [
-      "@nrwl/workspace",
-      "@nrwl/angular",
-      "@nrwl/cli",
-      "@nrwl/cypress",
-      "@nrwl/devkit",
-      "@nrwl/eslint-plugin-nx",
-      "@nrwl/express",
-      "@nrwl/gatsby",
-      "@nrwl/jest",
-      "@nrwl/linter",
-      "@nrwl/nest",
-      "@nrwl/next",
-      "@nrwl/node",
-      "@nrwl/nx-plugin",
-      "@nrwl/react",
-      "@nrwl/storybook",
-      "@nrwl/tao",
-      "@nrwl/web"
-    ]
-  },
-  "peerDependencies": {
-    "prettier": "^2.3.0"
-  },
-  "peerDependenciesMeta": {
-    "prettier": {
-      "optional": true
+    "packageGroup": {
+      "@nrwl/js": "*",
+      "@nrwl/jest": "*",
+      "@nrwl/linter": "*",
+      "@nrwl/angular": "*",
+      "@nrwl/cypress": "*",
+      "@nrwl/detox": "*",
+      "@nrwl/devkit": "*",
+      "@nrwl/esbuild": "*",
+      "@nrwl/eslint-plugin-nx": "*",
+      "@nrwl/expo": "*",
+      "@nrwl/express": "*",
+      "@nrwl/nest": "*",
+      "@nrwl/next": "*",
+      "@nrwl/node": "*",
+      "nx-cloud": "latest",
+      "@nrwl/nx-plugin": "*",
+      "@nrwl/react-native": "*",
+      "@nrwl/react": "*",
+      "@nrwl/rollup": "*",
+      "@nrwl/storybook": "*",
+      "@nrwl/tao": "*",
+      "@nrwl/vite": "*",
+      "@nrwl/web": "*",
+      "@nrwl/webpack": "*",
+      "nx": "*"
     }
   },
   "dependencies": {
-    "@parcel/watcher": "2.0.4",
-    "chokidar": "^3.5.1",
-    "cosmiconfig": "^4.0.0",
-    "cli-spinners": "2.6.1",
-    "fs-extra": "^9.1.0",
-    "dotenv": "~10.0.0",
-    "figures": "3.2.0",
-    "glob": "7.1.4",
-    "ignore": "^5.0.4",
-    "npm-run-path": "^4.0.1",
-    "open": "^7.4.2",
-    "rxjs": "^6.5.4",
-    "semver": "7.3.4",
-    "strip-ansi": "6.0.0",
-    "tmp": "~0.2.1",
-    "yargs": "15.4.1",
-    "yargs-parser": "20.0.0",
-    "chalk": "4.1.0",
-    "flat": "^5.0.2",
-    "minimatch": "3.0.4",
+    "@nx/devkit": "file:../devkit",
+    "chalk": "^4.1.0",
     "enquirer": "~2.3.6",
-    "tslib": "^2.3.0"
+    "tslib": "^2.3.0",
+    "yargs-parser": "21.1.1"
   },
-  "nx-migrations": {
-    "migrations": "./migrations.json"
+  "publishConfig": {
+    "access": "public"
   }
 }

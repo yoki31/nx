@@ -3,8 +3,8 @@ import {
   removePropertyFromJestConfig,
 } from './update-config';
 import { jestConfigObject } from './functions';
-import { Tree } from '@nrwl/devkit';
-import { createTree } from '@nrwl/devkit/testing';
+import { Tree } from '@nx/devkit';
+import { createTree } from '@nx/devkit/testing';
 
 describe('Update jest.config.js', () => {
   let host: Tree;
@@ -150,7 +150,61 @@ describe('Update jest.config.js', () => {
       );
     });
 
+    it('should be able to update an existing value in a nested object with a dot delimited key', () => {
+      const newPropertyValue = 'value';
+      addPropertyToJestConfig(
+        host,
+        'jest.config.js',
+        ['alreadyExistingObject', 'nestedProperty', 'key.with.dot'],
+        newPropertyValue
+      );
+      const json = jestConfigObject(host, 'jest.config.js');
+      expect(json.alreadyExistingObject.nestedProperty['key.with.dot']).toEqual(
+        newPropertyValue
+      );
+    });
+
     it('should be able to modify an object with a string identifier', () => {
+      addPropertyToJestConfig(
+        host,
+        'jest.config.js',
+        'something-here',
+        'newPropertyValue'
+      );
+      let json = jestConfigObject(host, 'jest.config.js');
+      expect(json['something-here']).toEqual('newPropertyValue');
+
+      addPropertyToJestConfig(host, 'jest.config.js', 'update-me', 'goodbye');
+      json = jestConfigObject(host, 'jest.config.js');
+      expect(json['update-me']).toEqual('goodbye');
+    });
+
+    it('should modify a property with spread object syntax config', () => {
+      host.write(
+        'jest.config.js',
+        String.raw`
+       const { nxPreset } = require('@nx/jest/preset');
+        
+      module.exports = {
+        ...nxPreset,
+        name: 'test',
+        boolean: false,
+        preset: 'nrwl-preset',
+        "update-me": "hello",
+        alreadyExistingArray: ['something'],
+        alreadyExistingObject: {
+          nestedProperty: {
+            primitive: 'string',
+            childArray: ['value1', 'value2']
+          },
+          'nested-object': {
+            childArray: ['value1', 'value2']
+          }
+        },
+        numeric: 0,
+      }
+    `
+      );
       addPropertyToJestConfig(
         host,
         'jest.config.js',
@@ -220,12 +274,74 @@ describe('Update jest.config.js', () => {
         json['alreadyExistingObject']['nested-object']['childArray']
       ).toEqual(undefined);
     });
+    it('should remove single nested properties in the jest config, with a dot delimited key', () => {
+      host.write(
+        'jest.config.js',
+        String.raw`
+       const { nxPreset } = require('@nx/jest/preset');
+        
+      module.exports = {
+        ...nxPreset,
+        name: 'test',
+        alreadyExistingObject: {
+          'nested-object': {
+            'child.dotted.value': ['value1', 'value2']
+          }
+        },
+      }
+    `
+      );
+      removePropertyFromJestConfig(host, 'jest.config.js', [
+        'alreadyExistingObject',
+        'nested-object',
+        'child.dotted.value',
+      ]);
+      const json = jestConfigObject(host, 'jest.config.js');
+      expect(
+        json['alreadyExistingObject']['nested-object']['child.dotted.value']
+      ).toEqual(undefined);
+    });
     it('should remove single properties', () => {
       removePropertyFromJestConfig(host, 'jest.config.js', 'update-me');
       const json = jestConfigObject(host, 'jest.config.js');
       expect(json['update-me']).toEqual(undefined);
     });
     it('should remove a whole object', () => {
+      removePropertyFromJestConfig(
+        host,
+        'jest.config.js',
+        'alreadyExistingObject'
+      );
+      const json = jestConfigObject(host, 'jest.config.js');
+      expect(json['alreadyExistingObject']).toEqual(undefined);
+    });
+
+    it('should remove property with a spread object syntax in config', () => {
+      host.write(
+        'jest.config.js',
+        String.raw`
+       const { nxPreset } = require('@nx/jest/preset');
+        
+      module.exports = {
+        ...nxPreset,
+        name: 'test',
+        boolean: false,
+        preset: 'nrwl-preset',
+        "update-me": "hello",
+        alreadyExistingArray: ['something'],
+        alreadyExistingObject: {
+          nestedProperty: {
+            primitive: 'string',
+            childArray: ['value1', 'value2']
+          },
+          'nested-object': {
+            childArray: ['value1', 'value2']
+          }
+        },
+        numeric: 0,
+      }
+    `
+      );
       removePropertyFromJestConfig(
         host,
         'jest.config.js',

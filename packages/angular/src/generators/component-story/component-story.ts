@@ -1,13 +1,12 @@
-import type { Tree } from '@nrwl/devkit';
-import { generateFiles, joinPathFragments } from '@nrwl/devkit';
-import { getComponentProps } from '../utils/storybook';
-import { getArgsDefaultValue } from './lib/get-args-default-value';
+import type { Tree } from '@nx/devkit';
+import { formatFiles, generateFiles, joinPathFragments } from '@nx/devkit';
+import { getComponentProps } from '../utils/storybook-ast/storybook-inputs';
 import type { ComponentStoryGeneratorOptions } from './schema';
 
-export function componentStoryGenerator(
+export async function componentStoryGenerator(
   tree: Tree,
   options: ComponentStoryGeneratorOptions
-): void {
+): Promise<void> {
   const { componentFileName, componentName, componentPath, projectPath } =
     options;
 
@@ -24,16 +23,21 @@ export function componentStoryGenerator(
 
   const props = getComponentProps(
     tree,
-    joinPathFragments(destinationDir, `${componentFileName}.ts`),
-    getArgsDefaultValue
+    joinPathFragments(destinationDir, `${componentFileName}.ts`)
   );
 
   generateFiles(tree, templatesDir, destinationDir, {
     componentFileName: componentFileName,
     componentName: componentName,
+    componentNameSimple: componentFileName.replace('.component', ''),
+    interactionTests: options.interactionTests,
     props: props.filter((p) => typeof p.defaultValue !== 'undefined'),
     tmpl: '',
   });
+
+  if (!options.skipFormat) {
+    await formatFiles(tree);
+  }
 }
 
 export default componentStoryGenerator;

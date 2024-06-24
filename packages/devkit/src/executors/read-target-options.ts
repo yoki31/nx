@@ -1,7 +1,12 @@
-import type { Target } from '@nrwl/tao/src/commands/run';
-import type { ExecutorContext } from '@nrwl/tao/src/shared/workspace';
-import { Workspaces } from '@nrwl/tao/src/shared/workspace';
-import { combineOptionsForExecutor } from '@nrwl/tao/src/shared/params';
+import { relative } from 'path';
+
+import type { ExecutorContext, Target } from 'nx/src/devkit-exports';
+
+import {
+  calculateDefaultProjectName,
+  combineOptionsForExecutor,
+  getExecutorInformation,
+} from 'nx/src/devkit-internals';
 
 /**
  * Reads and combines options for a given target.
@@ -12,24 +17,41 @@ export function readTargetOptions<T = any>(
   { project, target, configuration }: Target,
   context: ExecutorContext
 ): T {
-  const projectConfiguration = context.workspace.projects[project];
+  const projectConfiguration = (
+    context.workspace || context.projectsConfigurations
+  ).projects[project];
+
+  if (!projectConfiguration) {
+    throw new Error(`Unable to find project ${project}`);
+  }
+
   const targetConfiguration = projectConfiguration.targets[target];
 
-  const ws = new Workspaces(context.root);
-  const [nodeModule, executorName] = targetConfiguration.executor.split(':');
-  const { schema } = ws.readExecutor(nodeModule, executorName);
+  if (!targetConfiguration) {
+    throw new Error(`Unable to find target ${target} for project ${project}`);
+  }
 
-  const defaultProject = ws.calculateDefaultProjectName(
+  const [nodeModule, executorName] = targetConfiguration.executor.split(':');
+  const { schema } = getExecutorInformation(
+    nodeModule,
+    executorName,
+    context.root,
+    context.projectsConfigurations?.projects ?? context.workspace.projects
+  );
+
+  const defaultProject = calculateDefaultProjectName(
     context.cwd,
-    context.workspace
+    context.root,
+    { version: 2, projects: context.projectsConfigurations.projects },
+    context.nxJsonConfiguration
   );
 
   return combineOptionsForExecutor(
     {},
-    configuration ?? '',
+    configuration ?? targetConfiguration.defaultConfiguration ?? '',
     targetConfiguration,
     schema,
     defaultProject,
-    ws.relativeCwd(context.cwd)
+    relative(context.root, context.cwd)
   ) as T;
 }

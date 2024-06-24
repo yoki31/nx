@@ -1,15 +1,11 @@
-import * as ts from 'typescript';
-import {
-  BinaryExpression,
-  ExpressionStatement,
-  isBinaryExpression,
-  isExpressionStatement,
-  SyntaxKind,
-} from 'typescript';
-import { applyChangesToString, ChangeType, Tree } from '@nrwl/devkit';
+import type * as ts from 'typescript';
+import { applyChangesToString, ChangeType, Tree } from '@nx/devkit';
 import { Config } from '@jest/types';
 import { createContext, runInContext } from 'vm';
 import { dirname, join } from 'path';
+import { ensureTypescript } from '@nx/js/src/utils/typescript/ensure-typescript';
+
+let tsModule: typeof import('typescript');
 
 function makeTextToInsert(
   value: unknown,
@@ -22,7 +18,14 @@ function findPropertyAssignment(
   object: ts.ObjectLiteralExpression,
   propertyName: string
 ) {
+  if (!tsModule) {
+    tsModule = ensureTypescript();
+  }
+
   return object.properties.find((prop) => {
+    if (!tsModule.isPropertyAssignment(prop)) {
+      return false;
+    }
     const propNameText = prop.name.getText();
     if (propNameText.match(/^["'].+["']$/g)) {
       return JSON.parse(propNameText.replace(/'/g, '"')) === propertyName;
@@ -39,6 +42,11 @@ export function addOrUpdateProperty(
   value: unknown,
   path: string
 ) {
+  if (!tsModule) {
+    tsModule = ensureTypescript();
+  }
+  const { SyntaxKind } = tsModule;
+
   const propertyName = properties.shift();
   const propertyAssignment = findPropertyAssignment(object, propertyName);
 
@@ -46,10 +54,10 @@ export function addOrUpdateProperty(
 
   if (propertyAssignment) {
     if (
-      propertyAssignment.initializer.kind === ts.SyntaxKind.StringLiteral ||
-      propertyAssignment.initializer.kind === ts.SyntaxKind.NumericLiteral ||
-      propertyAssignment.initializer.kind === ts.SyntaxKind.FalseKeyword ||
-      propertyAssignment.initializer.kind === ts.SyntaxKind.TrueKeyword
+      propertyAssignment.initializer.kind === SyntaxKind.StringLiteral ||
+      propertyAssignment.initializer.kind === SyntaxKind.NumericLiteral ||
+      propertyAssignment.initializer.kind === SyntaxKind.FalseKeyword ||
+      propertyAssignment.initializer.kind === SyntaxKind.TrueKeyword
     ) {
       const updatedContents = applyChangesToString(originalContents, [
         {
@@ -69,8 +77,7 @@ export function addOrUpdateProperty(
     }
 
     if (
-      propertyAssignment.initializer.kind ===
-      ts.SyntaxKind.ArrayLiteralExpression
+      propertyAssignment.initializer.kind === SyntaxKind.ArrayLiteralExpression
     ) {
       const arrayLiteral =
         propertyAssignment.initializer as ts.ArrayLiteralExpression;
@@ -110,8 +117,7 @@ export function addOrUpdateProperty(
         return;
       }
     } else if (
-      propertyAssignment.initializer.kind ===
-      ts.SyntaxKind.ObjectLiteralExpression
+      propertyAssignment.initializer.kind === SyntaxKind.ObjectLiteralExpression
     ) {
       return addOrUpdateProperty(
         tree,
@@ -147,6 +153,10 @@ export function removeProperty(
   object: ts.ObjectLiteralExpression,
   properties: string[]
 ): ts.PropertyAssignment | null {
+  if (!tsModule) {
+    tsModule = ensureTypescript();
+  }
+
   const propertyName = properties.shift();
   const propertyAssignment = findPropertyAssignment(object, propertyName);
 
@@ -154,7 +164,7 @@ export function removeProperty(
     if (
       properties.length > 0 &&
       propertyAssignment.initializer.kind ===
-        ts.SyntaxKind.ObjectLiteralExpression
+        tsModule.SyntaxKind.ObjectLiteralExpression
     ) {
       return removeProperty(
         propertyAssignment.initializer as ts.ObjectLiteralExpression,
@@ -167,48 +177,95 @@ export function removeProperty(
   }
 }
 
+function isModuleExport(node: ts.Statement) {
+  if (!tsModule) {
+    tsModule = ensureTypescript();
+  }
+
+  return (
+    tsModule.isExpressionStatement(node) &&
+    node.expression?.kind &&
+    tsModule.isBinaryExpression(node.expression) &&
+    node.expression.left.getText() === 'module.exports' &&
+    node.expression.operatorToken?.kind === tsModule.SyntaxKind.EqualsToken
+  );
+}
+
+function isDefaultExport(node: ts.Statement) {
+  if (!tsModule) {
+    tsModule = ensureTypescript();
+  }
+
+  return (
+    tsModule.isExportAssignment(node) &&
+    node.expression?.kind &&
+    tsModule.isObjectLiteralExpression(node.expression) &&
+    node.getText().startsWith('export default')
+  );
+}
+
 /**
- * Should be used to get the jest config object.
- *
- * @param host
- * @param path
+ * Should be used to get the jest config object as AST
  */
 export function jestConfigObjectAst(
   fileContent: string
 ): ts.ObjectLiteralExpression {
-  const sourceFile = ts.createSourceFile(
-    'jest.config.js',
+  if (!tsModule) {
+    tsModule = ensureTypescript();
+  }
+
+  const sourceFile = tsModule.createSourceFile(
+    'jest.config.ts',
     fileContent,
-    ts.ScriptTarget.Latest,
+    tsModule.ScriptTarget.Latest,
     true
   );
 
-  const moduleExportsStatement = sourceFile.statements.find(
-    (statement) =>
-      isExpressionStatement(statement) &&
-      isBinaryExpression(statement.expression) &&
-      statement.expression.left.getText() === 'module.exports' &&
-      statement.expression.operatorToken.kind === SyntaxKind.EqualsToken
+  const exportStatement = sourceFile.statements.find(
+    (statement) => isModuleExport(statement) || isDefaultExport(statement)
   );
 
-  const moduleExports = (moduleExportsStatement as ExpressionStatement)
-    .expression as BinaryExpression;
-
-  if (!moduleExports) {
-    throw new Error(
-      `
+  let ast: ts.ObjectLiteralExpression;
+  if (tsModule.isExpressionStatement(exportStatement)) {
+    const moduleExports = exportStatement.expression as ts.BinaryExpression;
+    if (!moduleExports) {
+      throw new Error(
+        `
        The provided jest config file does not have the expected 'module.exports' expression. 
        See https://jestjs.io/docs/en/configuration for more details.`
-    );
-  }
+      );
+    }
 
-  if (!ts.isObjectLiteralExpression(moduleExports.right)) {
+    ast = moduleExports.right as ts.ObjectLiteralExpression;
+  } else if (tsModule.isExportAssignment(exportStatement)) {
+    const defaultExport =
+      exportStatement.expression as ts.ObjectLiteralExpression;
+
+    if (!defaultExport) {
+      throw new Error(
+        `
+       The provided jest config file does not have the expected 'export default' expression. 
+       See https://jestjs.io/docs/en/configuration for more details.`
+      );
+    }
+
+    ast = defaultExport;
+  }
+  if (!ast) {
     throw new Error(
-      `The 'module.exports' expression is not an object literal.`
+      `
+      The provided jest config file does not have the expected 'module.exports' or 'export default' expression. 
+      See https://jestjs.io/docs/en/configuration for more details.`
     );
   }
 
-  return moduleExports.right as ts.ObjectLiteralExpression;
+  if (!tsModule.isObjectLiteralExpression(ast)) {
+    throw new Error(
+      `The 'export default' or 'module.exports' expression is not an object literal.`
+    );
+  }
+
+  return ast;
 }
 
 /**
@@ -224,10 +281,18 @@ export function jestConfigObject(
   const contents = host.read(path, 'utf-8');
   let module = { exports: {} };
 
+  // transform the export default syntax to module.exports
+  // this will work for the default config, but will break if there are any other ts syntax
+  // TODO(caleb): use the AST to transform back to the module.exports syntax so this will keep working
+  //  or deprecate and make a new method for getting the jest config object
+  const forcedModuleSyntax = contents.replace(
+    /export\s+default/,
+    'module.exports ='
+  );
   // Run the contents of the file with some stuff from this current context
   // The module.exports will be mutated by the contents of the file...
   runInContext(
-    contents,
+    forcedModuleSyntax,
     createContext({
       module,
       require,

@@ -1,42 +1,63 @@
-const rootMain = require('<%= offsetFromRoot %>../.storybook/main');
-<% if (existsRootWebpackConfig){ %>const rootWebpackConfig = require('<%= offsetFromRoot %>../.storybook/webpack.config'); <% } %>
+<% if (usesVite && !viteConfigFilePath) { %>
+import { nxViteTsPaths } from '@nx/vite/plugins/nx-tsconfig-paths.plugin';
+import { mergeConfig } from 'vite';
+<% } %>
 
-module.exports = {
-  ...rootMain,
-  <% if (useWebpack5) { %>
-  core: { ...rootMain.core, builder: 'webpack5' },
-  <% } %>
+const config = {
   stories: [
-    ...rootMain.stories,
-    '../src/<%= projectType %>/**/*.stories.mdx',
-    '../src/<%= projectType %>/**/*.stories.@(js|jsx|ts|tsx)'
-  ],
-  addons: [...rootMain.addons <% if(uiFramework === '@storybook/react') { %>, '@nrwl/react/plugins/storybook' <% } %>],
-  webpackFinal: async (config, { configType }) => {
-    // apply any global webpack configs that might have been specified in .storybook/main.js
-    if (rootMain.webpackFinal) {
-      config = await rootMain.webpackFinal(config, { configType });
-    }
-
-    <% if (existsRootWebpackConfig) { %>// for backwards compatibility call the `rootWebpackConfig`
-      // this can be removed once that one is migrated fully to
-      // use the `webpackFinal` property in the `main.js` file
-      config = rootWebpackConfig({ config });
-    <% } %>
-
-    <% if (uiFramework === '@storybook/angular') { %>
-      // remove html raw-loader that breaks Jit compilation
-      const rules = (config.module.rules ?? []).filter(
-        (rule) =>
-          rule.test !== /\.html$/ &&
-          rule.exclude !== /\.async\.html$/ &&
-          !rule.loader?.includes('raw-loader')
-      );
-      config.module.rules = [...rules];
-    <% } %>
-
-    // add your own webpack tweaks if needed
-
-    return config;
+    <% if(uiFramework === '@storybook/angular' && projectType === 'library') { %>
+    '../**/*.stories.@(js|jsx|ts|tsx|mdx)' <% } else { %>
+    '../<%= projectDirectory %>/**/*.stories.@(js|jsx|ts|tsx|mdx)'
+  <% } %>],
+  addons: ['@storybook/addon-essentials' <% if(interactionTests) { %>, '@storybook/addon-interactions' <% } %><% if(uiFramework === '@storybook/react-webpack5') { %>, '@nx/react/plugins/storybook' <% } %>],
+  framework: {
+    name: '<%= uiFramework %>',
+    options: {
+     <% if (usesVite && viteConfigFilePath && hasPlugin) { %>
+      builder: {
+        viteConfigPath: '<%= viteConfigFileName %>',
+      },
+      <% } %>
+      <% if (usesVite && viteConfigFilePath && !hasPlugin) { %>
+      builder: {
+        viteConfigPath: '<%= viteConfigFilePath %>',
+      },
+      <% } %>
+    },
   },
+  <% if (useReactNative && uiFramework === '@storybook/react-webpack5') { %>webpackFinal: async (config) => {
+    if (config.resolve) {
+      config.resolve.alias = {
+        ...config.resolve.alias,
+        'react-native$': 'react-native-web',
+      };
+      config.resolve.extensions = [
+        '.web.tsx',
+        '.web.ts',
+        '.web.jsx',
+        '.web.js',
+        ...(config.resolve.extensions ?? []),
+      ];
+    }
+    return config;
+  },<% } %><% if (usesVite && !viteConfigFilePath) { %>
+  viteFinal: async (config) =>
+    mergeConfig(config, {
+      plugins: [nxViteTsPaths()],
+    }),
+  <% } %>
 };
+
+export default config;
+
+<% if(!usesVite) { %>
+// To customize your webpack configuration you can use the webpackFinal field.
+// Check https://storybook.js.org/docs/react/builders/webpack#extending-storybooks-webpack-config
+// and https://nx.dev/recipes/storybook/custom-builder-configs
+<% } %>
+
+<% if(usesVite) { %>
+// To customize your Vite configuration you can use the viteFinal field.
+// Check https://storybook.js.org/docs/react/builders/vite#configuration
+// and https://nx.dev/recipes/storybook/custom-builder-configs
+<% } %>

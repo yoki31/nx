@@ -1,7 +1,13 @@
-export const nxVersion = '*';
-export const storybookVersion = '~6.4.5';
-export const babelCoreVersion = '7.12.13';
-export const babelLoaderVersion = '8.1.0';
-export const babelPresetTypescriptVersion = '7.12.13';
-export const svgrVersion = '^5.4.0';
-export const urlLoaderVersion = '^3.0.0';
+export const nxVersion = require('../../package.json').version;
+export const storybookTestRunnerVersion = '^0.13.0';
+export const storybookTestingLibraryVersion = '^0.2.2';
+export const storybookJestVersion = '^0.2.3';
+export const litVersion = '^2.6.1';
+export const tsNodeVersion = '10.9.1';
+export const tsLibVersion = '^2.3.0';
+
+export const storybookVersion = '^7.5.3';
+export const reactVersion = '^18.2.0';
+export const viteVersion = '~5.0.0';
+
+export const coreJsVersion = '^3.36.1';

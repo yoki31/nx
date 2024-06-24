@@ -1,86 +1,73 @@
-import { ExecutorContext } from '@nrwl/devkit';
 import {
   compileTypeScript,
   compileTypeScriptWatcher,
-} from '@nrwl/workspace/src/utilities/typescript/compilation';
-import { Observable } from 'rxjs';
-import type {
-  CustomTransformers,
-  Diagnostic,
-  Program,
-  SourceFile,
-  TransformerFactory,
-} from 'typescript';
+  TypeScriptCompilationOptions,
+} from '@nx/workspace/src/utilities/typescript/compilation';
+import type { Diagnostic } from 'typescript';
+import { createAsyncIterable } from '@nx/devkit/src/utils/async-iterable';
 import { NormalizedExecutorOptions } from '../schema';
-import { loadTsPlugins } from './load-ts-plugins';
+
+const TYPESCRIPT_FOUND_N_ERRORS_WATCHING_FOR_FILE_CHANGES = 6194;
+// Typescript diagnostic message for 6194: Found {0} errors. Watching for file changes.
+// https://github.com/microsoft/TypeScript/blob/d45012c5e2ab122919ee4777a7887307c5f4a1e0/src/compiler/diagnosticMessages.json#L4763-L4766
+const ERROR_COUNT_REGEX = /Found (\d+) errors/;
+
+function getErrorCountFromMessage(messageText: string) {
+  return Number.parseInt(ERROR_COUNT_REGEX.exec(messageText)[1]);
+}
+
+export interface TypescriptCompilationResult {
+  success: boolean;
+  outfile: string;
+}
 
 export function compileTypeScriptFiles(
-  options: NormalizedExecutorOptions,
-  context: ExecutorContext,
-  postCompleteAction: () => void | Promise<void>
-) {
-  const { compilerPluginHooks } = loadTsPlugins(options.transformers);
-
-  const getCustomTransformers = (program: Program): CustomTransformers => ({
-    before: compilerPluginHooks.beforeHooks.map(
-      (hook) => hook(program) as TransformerFactory<SourceFile>
-    ),
-    after: compilerPluginHooks.afterHooks.map(
-      (hook) => hook(program) as TransformerFactory<SourceFile>
-    ),
-    afterDeclarations: compilerPluginHooks.afterDeclarationsHooks.map(
-      (hook) => hook(program) as TransformerFactory<SourceFile>
-    ),
+  normalizedOptions: NormalizedExecutorOptions,
+  tscOptions: TypeScriptCompilationOptions,
+  postCompilationCallback: () => void | Promise<void>
+): {
+  iterator: AsyncIterable<TypescriptCompilationResult>;
+  close: () => void | Promise<void>;
+} {
+  const getResult = (success: boolean) => ({
+    success,
+    outfile: normalizedOptions.mainOutputPath,
   });
 
-  // const tcsOptions = {
-  //   outputPath: options.normalizedOutputPath,
-  //   projectName: context.projectName,
-  //   projectRoot: libRoot,
-  //   tsConfig: tsConfigPath,
-  //   deleteOutputPath: options.deleteOutputPath,
-  //   rootDir: options.srcRootForCompilationRoot,
-  //   watch: options.watch,
-  //   getCustomTransformers,
-  // };
+  let tearDown: (() => void) | undefined;
 
-  const tscOptions = {
-    outputPath: options.outputPath,
-    projectName: context.projectName,
-    projectRoot: options.projectRoot,
-    tsConfig: options.tsConfig,
-    // deleteOutputPath: options.deleteOutputPath,
-    // rootDir: options.srcRootForCompilationRoot,
-    watch: options.watch,
-    getCustomTransformers,
-  };
+  return {
+    iterator: createAsyncIterable<TypescriptCompilationResult>(
+      async ({ next, done }) => {
+        if (normalizedOptions.watch) {
+          const host = compileTypeScriptWatcher(
+            tscOptions,
+            async (d: Diagnostic) => {
+              if (
+                d.code === TYPESCRIPT_FOUND_N_ERRORS_WATCHING_FOR_FILE_CHANGES
+              ) {
+                await postCompilationCallback();
+                next(
+                  getResult(
+                    getErrorCountFromMessage(d.messageText as string) === 0
+                  )
+                );
+              }
+            }
+          );
 
-  return new Observable((subscriber) => {
-    if (options.watch) {
-      const watcher = compileTypeScriptWatcher(
-        tscOptions,
-        async (d: Diagnostic) => {
-          if (d.code === 6194) {
-            await postCompleteAction();
-            subscriber.next({ success: true });
-          }
+          tearDown = () => {
+            host.close();
+            done();
+          };
+        } else {
+          const { success } = compileTypeScript(tscOptions);
+          await postCompilationCallback();
+          next(getResult(success));
+          done();
         }
-      );
-
-      return () => {
-        watcher.close();
-        subscriber.complete();
-      };
-    }
-
-    const result = compileTypeScript(tscOptions);
-    (postCompleteAction() as Promise<void>).then(() => {
-      subscriber.next(result);
-      subscriber.complete();
-    });
-
-    return () => {
-      subscriber.complete();
-    };
-  });
+      }
+    ),
+    close: () => tearDown?.(),
+  };
 }

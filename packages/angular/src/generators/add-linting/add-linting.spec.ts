@@ -1,13 +1,15 @@
-import type { ProjectConfiguration, Tree } from '@nrwl/devkit';
+import 'nx/src/internal-testing-utils/mock-project-graph';
+
 import {
+  ProjectConfiguration,
+  Tree,
   addProjectConfiguration,
   readJson,
-  readProjectConfiguration,
-} from '@nrwl/devkit';
-import { createTreeWithEmptyWorkspace } from '@nrwl/devkit/testing';
-import * as linter from '@nrwl/linter';
+  updateJson,
+} from '@nx/devkit';
+import { createTreeWithEmptyWorkspace } from '@nx/devkit/testing';
+import * as linter from '@nx/eslint';
 import { addLintingGenerator } from './add-linting';
-import * as devkit from '@nrwl/devkit';
 
 describe('addLinting generator', () => {
   let tree: Tree;
@@ -15,7 +17,7 @@ describe('addLinting generator', () => {
   const appProjectRoot = `apps/${appProjectName}`;
 
   beforeEach(() => {
-    tree = createTreeWithEmptyWorkspace();
+    tree = createTreeWithEmptyWorkspace({ layout: 'apps-libs' });
 
     addProjectConfiguration(tree, appProjectName, {
       root: appProjectRoot,
@@ -25,16 +27,17 @@ describe('addLinting generator', () => {
     } as ProjectConfiguration);
   });
 
-  it('should invoke the lint init generator', async () => {
-    jest.spyOn(linter, 'lintInitGenerator');
+  it('should invoke the lintProjectGenerator', async () => {
+    jest.spyOn(linter, 'lintProjectGenerator');
 
     await addLintingGenerator(tree, {
       prefix: 'myOrg',
       projectName: appProjectName,
       projectRoot: appProjectRoot,
+      skipFormat: true,
     });
 
-    expect(linter.lintInitGenerator).toHaveBeenCalled();
+    expect(linter.lintProjectGenerator).toHaveBeenCalled();
   });
 
   it('should add the Angular specific EsLint devDependencies', async () => {
@@ -42,6 +45,7 @@ describe('addLinting generator', () => {
       prefix: 'myOrg',
       projectName: appProjectName,
       projectRoot: appProjectRoot,
+      skipFormat: true,
     });
 
     const { devDependencies } = readJson(tree, 'package.json');
@@ -57,40 +61,32 @@ describe('addLinting generator', () => {
       prefix: 'myOrg',
       projectName: appProjectName,
       projectRoot: appProjectRoot,
+      skipFormat: true,
     });
 
     const eslintConfig = readJson(tree, `${appProjectRoot}/.eslintrc.json`);
     expect(eslintConfig).toMatchSnapshot();
   });
 
-  it('should update the project with the right lint target configuration', async () => {
-    await addLintingGenerator(tree, {
-      prefix: 'myOrg',
-      projectName: appProjectName,
-      projectRoot: appProjectRoot,
-    });
+  it('should not touch the package.json when run with `--skipPackageJson`', async () => {
+    let initialPackageJson;
+    updateJson(tree, 'package.json', (json) => {
+      json.dependencies = {};
+      json.devDependencies = {};
+      initialPackageJson = json;
 
-    const project = readProjectConfiguration(tree, appProjectName);
-    expect(project.targets.lint).toEqual({
-      executor: '@nrwl/linter:eslint',
-      options: {
-        lintFilePatterns: [
-          `${appProjectRoot}/src/**/*.ts`,
-          `${appProjectRoot}/src/**/*.html`,
-        ],
-      },
+      return json;
     });
-  });
-
-  it('should format files', async () => {
-    jest.spyOn(devkit, 'formatFiles');
 
     await addLintingGenerator(tree, {
       prefix: 'myOrg',
       projectName: appProjectName,
       projectRoot: appProjectRoot,
+      skipFormat: true,
+      skipPackageJson: true,
     });
 
-    expect(devkit.formatFiles).toHaveBeenCalled();
+    const packageJson = readJson(tree, 'package.json');
+    expect(packageJson).toEqual(initialPackageJson);
   });
 });

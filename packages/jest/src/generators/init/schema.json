@@ -1,14 +1,33 @@
 {
-  "$schema": "http://json-schema.org/schema",
+  "$schema": "https://json-schema.org/schema",
   "$id": "NxJestInit",
   "cli": "nx",
-  "title": "Add Jest Configuration to a workspace",
+  "title": "Jest init",
+  "description": "Add Jest Configuration to a workspace.",
   "type": "object",
   "properties": {
-    "babelJest": {
+    "skipFormat": {
+      "description": "Skip formatting files.",
       "type": "boolean",
-      "alias": "babel-jest",
-      "description": "Use babel-jest instead of ts-jest",
+      "default": false,
+      "x-priority": "internal"
+    },
+    "skipPackageJson": {
+      "type": "boolean",
+      "default": false,
+      "description": "Do not add dependencies to `package.json`.",
+      "x-priority": "internal"
+    },
+    "keepExistingVersions": {
+      "type": "boolean",
+      "x-priority": "internal",
+      "description": "Keep existing dependencies versions",
+      "default": false
+    },
+    "updatePackageScripts": {
+      "type": "boolean",
+      "x-priority": "internal",
+      "description": "Update `package.json` scripts with inferred targets",
       "default": false
     }
   },

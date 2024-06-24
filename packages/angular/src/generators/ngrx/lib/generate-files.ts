@@ -1,45 +1,41 @@
-import type { Tree } from '@nrwl/devkit';
-import { generateFiles, joinPathFragments, names } from '@nrwl/devkit';
-import { dirname } from 'path';
-import type { NgRxGeneratorOptions } from '../schema';
+import type { Tree } from '@nx/devkit';
+import { generateFiles, joinPathFragments, names } from '@nx/devkit';
+import { lt } from 'semver';
+import { NormalizedNgRxGeneratorOptions } from './normalize-options';
 
 /**
  * Generate 'feature' scaffolding: actions, reducer, effects, interfaces, selectors, facade
  */
 export function generateNgrxFilesFromTemplates(
   tree: Tree,
-  options: NgRxGeneratorOptions
+  options: NormalizedNgRxGeneratorOptions
 ): void {
   const name = options.name;
-  const moduleDir = dirname(options.module);
-  const templatesDir =
-    !options.syntax || options.syntax === 'creators'
-      ? './files/creator-syntax'
-      : './files/classes-syntax';
   const projectNames = names(name);
 
   generateFiles(
     tree,
-    joinPathFragments(__dirname, '..', templatesDir),
-    moduleDir,
+    joinPathFragments(__dirname, '..', 'files'),
+    options.parentDirectory,
     {
       ...options,
-      tmpl: '',
       ...projectNames,
+      importFromOperators: lt(options.rxjsVersion, '7.2.0'),
+      tmpl: '',
     }
   );
 
   if (!options.facade) {
     tree.delete(
       joinPathFragments(
-        moduleDir,
+        options.parentDirectory,
         options.directory,
         `${projectNames.fileName}.facade.ts`
       )
     );
     tree.delete(
       joinPathFragments(
-        moduleDir,
+        options.parentDirectory,
         options.directory,
         `${projectNames.fileName}.facade.spec.ts`
       )

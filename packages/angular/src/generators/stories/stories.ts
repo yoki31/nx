@@ -1,22 +1,43 @@
-import type { Tree } from '@nrwl/devkit';
-import { logger } from '@nrwl/devkit';
-import { getProjectRootPath } from '@nrwl/workspace/src/utilities/project-type';
+import {
+  addDependenciesToPackageJson,
+  ensurePackage,
+  formatFiles,
+  GeneratorCallback,
+  joinPathFragments,
+  logger,
+  readProjectConfiguration,
+  runTasksInSerial,
+  Tree,
+} from '@nx/devkit';
 import componentCypressSpecGenerator from '../component-cypress-spec/component-cypress-spec';
 import componentStoryGenerator from '../component-story/component-story';
-import { getComponentsInfo } from './lib/component-info';
+import type { ComponentInfo } from '../utils/storybook-ast/component-info';
+import {
+  getComponentsInfo,
+  getStandaloneComponentsInfo,
+} from '../utils/storybook-ast/component-info';
+import { getProjectEntryPoints } from '../utils/storybook-ast/entry-point';
 import { getE2EProject } from './lib/get-e2e-project';
-import { getModuleFilePaths } from './lib/module-info';
+import { getModuleFilePaths } from '../utils/storybook-ast/module-info';
 import type { StoriesGeneratorOptions } from './schema';
+import { minimatch } from 'minimatch';
+import { nxVersion } from '../../utils/versions';
 
-export function angularStoriesGenerator(
+export async function angularStoriesGenerator(
   tree: Tree,
   options: StoriesGeneratorOptions
-): void {
+): Promise<GeneratorCallback> {
   const e2eProjectName = options.cypressProject ?? `${options.name}-e2e`;
   const e2eProject = getE2EProject(tree, e2eProjectName);
-  const projectPath = getProjectRootPath(tree, options.name);
-  const moduleFilePaths = getModuleFilePaths(tree, projectPath);
-  const componentsInfo = getComponentsInfo(tree, moduleFilePaths, options.name);
+  const entryPoints = getProjectEntryPoints(tree, options.name);
+  const componentsInfo: ComponentInfo[] = [];
+  for (const entryPoint of entryPoints) {
+    const moduleFilePaths = getModuleFilePaths(tree, entryPoint);
+    componentsInfo.push(
+      ...getComponentsInfo(tree, entryPoint, moduleFilePaths, options.name),
+      ...getStandaloneComponentsInfo(tree, entryPoint)
+    );
+  }
 
   if (options.generateCypressSpecs && !e2eProject) {
     logger.info(
@@ -24,29 +45,66 @@ export function angularStoriesGenerator(
     );
   }
 
-  componentsInfo.forEach((info) => {
+  const componentInfos = componentsInfo.filter(
+    (f) =>
+      !options.ignorePaths?.some((pattern) => {
+        const shouldIgnorePath = minimatch(
+          joinPathFragments(
+            f.moduleFolderPath,
+            f.path,
+            `${f.componentFileName}.ts`
+          ),
+          pattern
+        );
+        return shouldIgnorePath;
+      })
+  );
+
+  for (const info of componentInfos) {
     if (info === undefined) {
-      return;
+      continue;
     }
 
-    componentStoryGenerator(tree, {
+    await componentStoryGenerator(tree, {
       projectPath: info.moduleFolderPath,
       componentName: info.name,
       componentPath: info.path,
       componentFileName: info.componentFileName,
+      interactionTests: options.interactionTests ?? true,
+      skipFormat: true,
     });
 
     if (options.generateCypressSpecs && e2eProject) {
-      componentCypressSpecGenerator(tree, {
+      await componentCypressSpecGenerator(tree, {
         projectName: options.name,
         projectPath: info.moduleFolderPath,
         cypressProject: options.cypressProject,
         componentName: info.name,
         componentPath: info.path,
         componentFileName: info.componentFileName,
+        specDirectory: joinPathFragments(info.entryPointName, info.path),
+        skipFormat: true,
       });
     }
-  });
+  }
+  const tasks: GeneratorCallback[] = [];
+
+  if (options.interactionTests) {
+    const { interactionTestsDependencies, addInteractionsInAddons } =
+      ensurePackage<typeof import('@nx/storybook')>('@nx/storybook', nxVersion);
+
+    const projectConfiguration = readProjectConfiguration(tree, options.name);
+    addInteractionsInAddons(tree, projectConfiguration);
+
+    tasks.push(
+      addDependenciesToPackageJson(tree, {}, interactionTestsDependencies())
+    );
+  }
+
+  if (!options.skipFormat) {
+    await formatFiles(tree);
+  }
+  return runTasksInSerial(...tasks);
 }
 
 export default angularStoriesGenerator;

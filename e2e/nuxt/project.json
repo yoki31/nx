@@ -1,0 +1,16 @@
+{
+  "name": "e2e-nuxt",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "e2e/nuxt",
+  "projectType": "application",
+  "implicitDependencies": ["nuxt"],
+  "targets": {
+    "e2e-ci--src/nuxt.test.ts": {
+      "dependsOn": [
+        "nx:build-native",
+        "@nx/nx-source:populate-local-registry-storage"
+      ],
+      "inputs": ["e2eInputs", "^production"]
+    }
+  }
+}

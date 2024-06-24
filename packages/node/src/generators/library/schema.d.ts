@@ -1,8 +1,10 @@
-import { Linter } from '@nrwl/linter';
+import type { ProjectNameAndRootFormat } from '@nx/devkit/src/generators/project-name-and-root-utils';
+import type { Linter } from '@nx/eslint';
 
 export interface Schema {
   name: string;
   directory?: string;
+  projectNameAndRootFormat?: ProjectNameAndRootFormat;
   simpleModuleName?: boolean;
   skipTsConfig?: boolean;
   skipFormat?: boolean;
@@ -20,4 +22,6 @@ export interface Schema {
   strict?: boolean;
   standaloneConfig?: boolean;
   setParserOptionsProject?: boolean;
+  compiler: 'tsc' | 'swc';
+  addPlugin?: boolean;
 }

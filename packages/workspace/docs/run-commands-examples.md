@@ -6,7 +6,7 @@
     "targets": {
         //...
         "ls-project-root": {
-            "executor": "@nrwl/workspace:run-commands",
+            "executor": "nx:run-commands",
             "options": {
                 "command": "ls apps/frontend/src"
             }
@@ -16,7 +16,7 @@
 ```
 
 ```bash
-<%= cli %> run frontend:ls-project-root
+nx run frontend:ls-project-root
 ```
 
 ##### Chaining commands, interpolating args and setting the cwd
@@ -31,7 +31,7 @@ You can run them sequentially by setting `parallel: false`:
 
 ```json
 "create-script": {
-    "executor": "@nrwl/workspace:run-commands",
+    "executor": "nx:run-commands",
     "options": {
         "commands": [
           "mkdir -p scripts",
@@ -49,13 +49,13 @@ By setting the `cwd` option, each command will run in the `apps/frontend` folder
 We run the above with:
 
 ```bash
-<%= cli %> run frontend:create-script --args="--name=example"
+nx run frontend:create-script --args="--name=example"
 ```
 
 or simply with:
 
 ```bash
-<%= cli %> run frontend:create-script --name=example
+nx run frontend:create-script --name=example
 ```
 
 ##### Arguments forwarding
@@ -66,11 +66,11 @@ This is useful when you need to pass raw argument strings to your command.
 
 For example, when you run:
 
-<%= cli %> run frontend:webpack --args="--config=example.config.js"
+nx run frontend:webpack --args="--config=example.config.js"
 
 ```json
 "webpack": {
-    "executor": "@nrwl/workspace:run-commands",
+    "executor": "nx:run-commands",
     "options": {
         "command": "webpack"
     }
@@ -84,7 +84,7 @@ that sets the `forwardAllArgs` option to `false` as shown below:
 
 ```json
 "webpack": {
-    "executor": "@nrwl/workspace:run-commands",
+    "executor": "nx:run-commands",
     "options": {
         "commands": [
             {
@@ -102,7 +102,7 @@ Normally, `run-commands` considers the commands done when all of them have finis
 
 ```json
 "finish-when-ready": {
-    "executor": "@nrwl/workspace:run-commands",
+    "executor": "nx:run-commands",
     "options": {
         "commands": [
             "sleep 5 && echo 'FINISHED'",
@@ -115,14 +115,14 @@ Normally, `run-commands` considers the commands done when all of them have finis
 ```
 
 ```bash
-<%= cli %> run frontend:finish-when-ready
+nx run frontend:finish-when-ready
 ```
 
 The above commands will finish immediately, instead of waiting for 5 seconds.
 
 ##### Nx Affected
 
-The true power of `run-commands` comes from the fact that it runs through `nx`, which knows about your dependency graph. So you can run **custom commands** only for the projects that have been affected by a change.
+The true power of `run-commands` comes from the fact that it runs through `nx`, which knows about your project graph. So you can run **custom commands** only for the projects that have been affected by a change.
 
 We can create some configurations to generate docs, and if run using `nx affected`, it will only generate documentation for the projects that have been changed:
 
@@ -136,7 +136,7 @@ nx affected --target=generate-docs
     "targets": {
         //...
         "generate-docs": {
-            "executor": "@nrwl/workspace:run-commands",
+            "executor": "nx:run-commands",
             "options": {
                 "command": "npx compodoc -p apps/frontend/tsconfig.app.json"
             }
@@ -147,7 +147,7 @@ nx affected --target=generate-docs
     "targets": {
         //...
         "generate-docs": {
-            "executor": "@nrwl/workspace:run-commands",
+            "executor": "nx:run-commands",
             "options": {
                 "command":  "npx compodoc -p apps/api/tsconfig.app.json"
             }

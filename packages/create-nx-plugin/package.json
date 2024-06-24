@@ -1,7 +1,8 @@
 {
   "name": "create-nx-plugin",
   "version": "0.0.1",
-  "description": "Smart, Fast and Extensible Build System",
+  "private": false,
+  "description": "This package is used to scaffold a brand-new workspace used to develop an Nx plugin, and sets up a pre-configured plugin with the specified name. The new plugin is created with a default generator, executor, and e2e app.",
   "repository": {
     "type": "git",
     "url": "https://github.com/nrwl/nx.git",
@@ -28,11 +29,13 @@
   },
   "homepage": "https://nx.dev",
   "dependencies": {
-    "@nrwl/workspace": "*",
+    "create-nx-workspace": "file:../create-nx-workspace",
+    "chalk": "^4.1.0",
     "enquirer": "~2.3.6",
-    "fs-extra": "^9.1.0",
-    "tmp": "~0.2.1",
-    "yargs": "15.4.1",
-    "yargs-parser": "20.0.0"
+    "tslib": "^2.3.0",
+    "yargs": "^17.6.2"
+  },
+  "publishConfig": {
+    "access": "public"
   }
 }

@@ -1,42 +1,39 @@
 {
+  "version": 2,
+  "outputCapture": "direct-nodejs",
   "title": "Storybook Builder",
   "cli": "nx",
-  "description": "Build storybook in production mode",
+  "description": "Build storybook in production mode.",
   "type": "object",
+  "presets": [
+    {
+      "name": "Default minimum setup",
+      "keys": ["outputDir", "configDir"]
+    }
+  ],
   "properties": {
-    "uiFramework": {
+    "outputDir": {
       "type": "string",
-      "description": "Storybook framework npm package",
-      "default": "@storybook/angular",
-      "hidden": true
+      "description": "Directory where to store built files.",
+      "x-completion-type": "directory"
     },
-    "outputPath": {
-      "type": "string",
-      "description": "The output path of the generated files."
+    "styles": {
+      "type": "array",
+      "description": "Global styles to be included in the build.",
+      "items": {
+        "$ref": "#/definitions/extraEntryPoint"
+      }
     },
-    "projectBuildConfig": {
-      "type": "string",
-      "description": "Workspace project where Storybook reads the Webpack config from"
-    },
-    "config": {
+    "stylePreprocessorOptions": {
       "type": "object",
-      "description": ".storybook configuration",
+      "description": "Options to pass to style preprocessors.",
       "properties": {
-        "configFolder": {
-          "type": "string",
-          "description": "Directory where to load Storybook configurations from"
-        },
-        "pluginPath": {
-          "type": "string",
-          "description": "Path to storybook plugin.js file."
-        },
-        "configPath": {
-          "type": "string",
-          "description": "Path to storybook preview.js file."
-        },
-        "srcRoot": {
-          "type": "string",
-          "description": "Project source path."
+        "includePaths": {
+          "type": "array",
+          "description": "The paths to include. Paths will be resolved to workspace root.",
+          "items": {
+            "type": "string"
+          }
         }
       }
     },
@@ -45,11 +42,80 @@
       "description": "Build a documentation-only site using addon-docs.",
       "default": false
     },
+    "staticDir": {
+      "type": "array",
+      "description": "Directory where to load static files from, array of strings.",
+      "items": {
+        "type": "string"
+      },
+      "x-deprecated": "In Storybook 6.4 the `--static-dir` CLI flag has been replaced with the the `staticDirs` field in `.storybook/main.js`. It will be removed completely in Storybook 7.0."
+    },
+    "configDir": {
+      "type": "string",
+      "description": "Directory where to load Storybook configurations from.",
+      "x-completion-type": "directory",
+      "x-priority": "important"
+    },
+    "loglevel": {
+      "type": "string",
+      "description": "Controls level of logging during build. Can be one of: [silly, verbose, info (default), warn, error, silent].",
+      "pattern": "(silly|verbose|info|warn|silent)"
+    },
     "quiet": {
       "type": "boolean",
-      "description": "Suppress verbose build output.",
-      "default": true
+      "description": "Suppress verbose build output."
+    },
+    "docs": {
+      "type": "boolean",
+      "description": "Starts Storybook in documentation mode. Learn more about it : https://storybook.js.org/docs/react/writing-docs/build-documentation#preview-storybooks-documentation."
+    },
+    "webpackStatsJson": {
+      "type": ["boolean", "string"],
+      "description": "Write Webpack Stats JSON to disk.",
+      "default": false
+    },
+    "debugWebpack": {
+      "type": "boolean",
+      "description": "Display final webpack configurations for debugging purposes."
+    },
+    "disableTelemetry": {
+      "type": "boolean",
+      "description": "Disables Storybook's telemetry."
     }
   },
-  "required": ["uiFramework", "config"]
+  "definitions": {
+    "extraEntryPoint": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "input": {
+              "type": "string",
+              "description": "The file to include.",
+              "x-completion-type": "file"
+            },
+            "bundleName": {
+              "type": "string",
+              "pattern": "^[\\w\\-.]*$",
+              "description": "The bundle name for this extra entry point."
+            },
+            "inject": {
+              "type": "boolean",
+              "description": "If the bundle will be referenced in the HTML file.",
+              "default": true
+            }
+          },
+          "additionalProperties": false,
+          "required": ["input"]
+        },
+        {
+          "type": "string",
+          "description": "The file to include."
+        }
+      ]
+    }
+  },
+  "additionalProperties": true,
+  "required": ["configDir"],
+  "examplesFile": "../../../docs/build-storybook-executor-examples.md"
 }

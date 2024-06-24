@@ -1,7 +1,10 @@
-import { readJson, Tree } from '@nrwl/devkit';
-import { createTreeWithEmptyWorkspace } from '@nrwl/devkit/testing';
-import { applicationGenerator, libraryGenerator } from '@nrwl/react';
-import { Linter } from '@nrwl/linter';
+import 'nx/src/internal-testing-utils/mock-project-graph';
+
+import { readJson, Tree } from '@nx/devkit';
+import { createTreeWithEmptyWorkspace } from '@nx/devkit/testing';
+import { Linter } from '@nx/eslint';
+import { applicationGenerator } from '../application/application';
+import { libraryGenerator } from '../library/library';
 import { reduxGenerator } from './redux';
 
 describe('redux', () => {
@@ -12,11 +15,11 @@ describe('redux', () => {
     await libraryGenerator(appTree, {
       name: 'my-lib',
       linter: Linter.EsLint,
-      skipFormat: false,
+      skipFormat: true,
       skipTsConfig: false,
       style: 'css',
       unitTestRunner: 'jest',
-      standaloneConfig: false,
+      projectNameAndRootFormat: 'as-provided',
     });
   });
 
@@ -37,11 +40,9 @@ describe('redux', () => {
       project: 'my-lib',
     });
 
+    expect(appTree.exists('/my-lib/src/lib/my-slice.slice.ts')).toBeTruthy();
     expect(
-      appTree.exists('/libs/my-lib/src/lib/my-slice.slice.ts')
-    ).toBeTruthy();
-    expect(
-      appTree.exists('/libs/my-lib/src/lib/my-slice.slice.spec.ts')
+      appTree.exists('/my-lib/src/lib/my-slice.slice.spec.ts')
     ).toBeTruthy();
   });
 
@@ -54,7 +55,7 @@ describe('redux', () => {
         style: 'css',
         unitTestRunner: 'none',
         name: 'my-app',
-        standaloneConfig: false,
+        projectNameAndRootFormat: 'as-provided',
       });
       await reduxGenerator(appTree, {
         name: 'my-slice',
@@ -72,7 +73,7 @@ describe('redux', () => {
         appProject: 'my-app',
       });
 
-      const main = appTree.read('/apps/my-app/src/main.tsx', 'utf-8');
+      const main = appTree.read('/my-app/src/main.tsx', 'utf-8');
       expect(main).toContain('@reduxjs/toolkit');
       expect(main).toContain('configureStore');
       expect(main).toContain('[THIRD_SLICE_FEATURE_KEY]: thirdSliceReducer,');

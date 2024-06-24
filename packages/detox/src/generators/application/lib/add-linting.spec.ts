@@ -1,6 +1,6 @@
-import { readProjectConfiguration, Tree } from '@nrwl/devkit';
-import { createTreeWithEmptyWorkspace } from '@nrwl/devkit/testing';
-import { Linter } from '@nrwl/linter';
+import { readProjectConfiguration, Tree } from '@nx/devkit';
+import { createTreeWithEmptyWorkspace } from '@nx/devkit/testing';
+import { Linter } from '@nx/eslint';
 import { addLinting } from './add-linting';
 import { addProject } from './add-project';
 
@@ -8,61 +8,53 @@ describe('Add Linting', () => {
   let tree: Tree;
 
   beforeEach(async () => {
-    tree = createTreeWithEmptyWorkspace();
+    tree = createTreeWithEmptyWorkspace({ layout: 'apps-libs' });
     addProject(tree, {
-      name: 'my-app-e2e',
-      projectName: 'my-app-e2e',
-      projectRoot: 'apps/my-app-e2e',
-      project: 'my-app',
+      e2eName: 'my-app-e2e',
+      e2eProjectName: 'my-app-e2e',
+      e2eProjectRoot: 'apps/my-app-e2e',
+      appProject: 'my-app',
       appFileName: 'my-app',
       appClassName: 'MyApp',
+      appDisplayName: 'MyApp',
+      appExpoName: 'MyApp',
+      appRoot: 'apps/my-app',
       linter: Linter.EsLint,
+      framework: 'react-native',
     });
   });
 
-  it('should add update `workspace.json` file properly when eslint is passed', () => {
-    addLinting(tree, {
-      name: 'my-app-e2e',
-      projectName: 'my-app-e2e',
-      projectRoot: 'apps/my-app-e2e',
-      project: 'my-app',
+  it('should update configuration when eslint is passed', async () => {
+    await addLinting(tree, {
+      e2eName: 'my-app-e2e',
+      e2eProjectName: 'my-app-e2e',
+      e2eProjectRoot: 'apps/my-app-e2e',
+      appProject: 'my-app',
       appFileName: 'my-app',
       appClassName: 'MyApp',
+      appDisplayName: 'MyApp',
+      appExpoName: 'MyApp',
+      appRoot: 'apps/my-app',
       linter: Linter.EsLint,
+      framework: 'react-native',
     });
-    const project = readProjectConfiguration(tree, 'my-app-e2e');
 
-    expect(project.targets.lint).toBeDefined();
-    expect(project.targets.lint.executor).toEqual('@nrwl/linter:eslint');
-  });
-
-  it('should add update `workspace.json` file properly when tslint is passed', () => {
-    addLinting(tree, {
-      name: 'my-app-e2e',
-      projectName: 'my-app-e2e',
-      projectRoot: 'apps/my-app-e2e',
-      project: 'my-app',
-      appFileName: 'my-app',
-      appClassName: 'MyApp',
-      linter: Linter.TsLint,
-    });
-    const project = readProjectConfiguration(tree, 'my-app-e2e');
-
-    expect(project.targets.lint).toBeDefined();
-    expect(project.targets.lint.executor).toEqual(
-      '@angular-devkit/build-angular:tslint'
-    );
+    expect(tree.exists('apps/my-app-e2e/.eslintrc.json')).toBeTruthy();
   });
 
   it('should not add lint target when "none" is passed', async () => {
-    addLinting(tree, {
-      name: 'my-app-e2e',
-      projectName: 'my-app-e2e',
-      projectRoot: 'apps/my-app-e2e',
-      project: 'my-app',
+    await addLinting(tree, {
+      e2eName: 'my-app-e2e',
+      e2eProjectName: 'my-app-e2e',
+      e2eProjectRoot: 'apps/my-app-e2e',
+      appProject: 'my-app',
       appFileName: 'my-app',
       appClassName: 'MyApp',
+      appDisplayName: 'MyApp',
+      appExpoName: 'MyApp',
+      appRoot: 'apps/my-app',
       linter: Linter.None,
+      framework: 'react-native',
     });
     const project = readProjectConfiguration(tree, 'my-app-e2e');
 

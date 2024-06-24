@@ -1,5 +1,7 @@
-import { Tree, readJson } from '@nrwl/devkit';
-import { createTreeWithEmptyWorkspace } from '@nrwl/devkit/testing';
+import 'nx/src/internal-testing-utils/mock-project-graph';
+
+import { Tree, readJson } from '@nx/devkit';
+import { createTreeWithEmptyWorkspace } from '@nx/devkit/testing';
 import { detoxInitGenerator } from './init';
 
 describe('init', () => {
@@ -10,10 +12,11 @@ describe('init', () => {
   });
 
   it('should add detox dependencies', async () => {
-    await detoxInitGenerator(tree, {});
+    await detoxInitGenerator(tree, {
+      addPlugin: true,
+    });
     const packageJson = readJson(tree, 'package.json');
-    expect(packageJson.devDependencies['@nrwl/detox']).toBeDefined();
-    expect(packageJson.devDependencies['@types/detox']).toBeDefined();
+    expect(packageJson.devDependencies['@nx/detox']).toBeDefined();
     expect(packageJson.devDependencies['detox']).toBeDefined();
   });
 });

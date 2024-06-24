@@ -1,9 +1,5 @@
-import type {
-  NxJsonProjectConfiguration,
-  ProjectConfiguration,
-  Tree,
-} from '@nrwl/devkit';
-import { readProjectConfiguration } from '@nrwl/devkit';
+import type { ProjectConfiguration, Tree } from '@nx/devkit';
+import { readProjectConfiguration } from '@nx/devkit';
 
 export function getE2EProject(
   tree: Tree,

@@ -1,43 +1,40 @@
-import 'dotenv/config';
 import {
   ExecutorContext,
-  logger,
   parseTargetString,
   readTargetOptions,
-} from '@nrwl/devkit';
+} from '@nx/devkit';
+import { resolve } from 'path';
 
-import * as chalk from 'chalk';
-import { existsSync } from 'fs';
-import { join, resolve } from 'path';
-
-import { prepareConfig } from '../../utils/config';
 import {
   NextBuildBuilderOptions,
   NextServeBuilderOptions,
-  NextServer,
-  NextServerOptions,
-  ProxyConfig,
 } from '../../utils/types';
-import { customServer } from './lib/custom-server';
-import { defaultServer } from './lib/default-server';
-import { readCachedProjectGraph } from '@nrwl/workspace/src/core/project-graph';
-import {
-  calculateProjectDependencies,
-  DependentBuildableProjectNode,
-} from '@nrwl/workspace/src/utilities/buildable-libs-utils';
-import { assertDependentProjectsHaveBeenBuilt } from '../../utils/buildable-libs';
-import { importConstants } from '../../utils/require-shim';
-import { workspaceLayout } from '@nrwl/workspace/src/core/file-utils';
-
-const { PHASE_DEVELOPMENT_SERVER, PHASE_PRODUCTION_SERVER } = importConstants();
-
-const infoPrefix = `[ ${chalk.dim(chalk.cyan('info'))} ] `;
-const readyPrefix = `[ ${chalk.green('ready')} ]`;
+import { fork } from 'child_process';
+import customServer from './custom-server.impl';
+import { createCliOptions } from '../../utils/create-cli-options';
+import { createAsyncIterable } from '@nx/devkit/src/utils/async-iterable';
+import { waitForPortOpen } from '@nx/web/src/utils/wait-for-port-open';
 
 export default async function* serveExecutor(
   options: NextServeBuilderOptions,
   context: ExecutorContext
 ) {
+  const buildOptions = readTargetOptions<NextBuildBuilderOptions>(
+    parseTargetString(options.buildTarget, context),
+    context
+  );
+  const projectRoot = context.workspace.projects[context.projectName].root;
+  // This is required for the default custom server to work. See the @nx/next:app generator.
+  const nextDir =
+    !options.dev && resolve(context.root, buildOptions.outputPath);
+  process.env.NX_NEXT_DIR ??= options.dev ? projectRoot : nextDir;
+
+  if (options.customServerTarget) {
+    return yield* customServer(options, context);
+  }
+
+  const { keepAliveTimeout, hostname } = options;
+
   // Cast to any to overwrite NODE_ENV
   (process.env as any).NODE_ENV = process.env.NODE_ENV
     ? process.env.NODE_ENV
@@ -45,83 +42,68 @@ export default async function* serveExecutor(
     ? 'development'
     : 'production';
 
-  let dependencies: DependentBuildableProjectNode[] = [];
-  const buildTarget = parseTargetString(options.buildTarget);
-  const baseUrl = `http://${options.hostname || 'localhost'}:${options.port}`;
-  const buildOptions = readTargetOptions<NextBuildBuilderOptions>(
-    buildTarget,
-    context
-  );
+  // Setting port that the custom server should use.
+  process.env.PORT = options.port ? `${options.port}` : process.env.PORT;
+  options.port = parseInt(process.env.PORT);
 
-  const root = resolve(context.root, buildOptions.root);
-  const libsDir = join(context.root, workspaceLayout().libsDir);
-  if (!options.buildLibsFromSource) {
-    const result = calculateProjectDependencies(
-      readCachedProjectGraph(),
-      context.root,
-      context.projectName,
-      'build', // should be generalized
-      context.configurationName
-    );
-    dependencies = result.dependencies;
+  const args = createCliOptions({ port: options.port, hostname });
 
-    assertDependentProjectsHaveBeenBuilt(dependencies, context);
+  if (keepAliveTimeout && !options.dev) {
+    args.push(`--keepAliveTimeout=${keepAliveTimeout}`);
   }
 
-  const config = await prepareConfig(
-    options.dev ? PHASE_DEVELOPMENT_SERVER : PHASE_PRODUCTION_SERVER,
-    buildOptions,
-    context,
-    dependencies,
-    libsDir
-  );
+  const mode = options.dev ? 'dev' : 'start';
+  const turbo = options.turbo && options.dev ? '--turbo' : '';
+  const nextBin = require.resolve('next/dist/bin/next');
 
-  const settings: NextServerOptions = {
-    dev: options.dev,
-    dir: root,
-    staticMarkup: options.staticMarkup,
-    quiet: options.quiet,
-    conf: config,
-    port: options.port,
-    path: options.customServerPath,
-    hostname: options.hostname,
-  };
-
-  const server: NextServer = options.customServerPath
-    ? customServer
-    : defaultServer;
-
-  // look for the proxy.conf.json
-  let proxyConfig: ProxyConfig;
-  const proxyConfigPath = options.proxyConfig
-    ? join(context.root, options.proxyConfig)
-    : join(root, 'proxy.conf.json');
-
-  if (existsSync(proxyConfigPath)) {
-    logger.info(
-      `${infoPrefix} found proxy configuration at ${proxyConfigPath}`
-    );
-    proxyConfig = require(proxyConfigPath);
-  }
-
-  try {
-    await server(settings, proxyConfig);
-    logger.info(`${readyPrefix} on ${baseUrl}`);
-
-    yield {
-      baseUrl,
-      success: true,
-    };
-
-    // This Promise intentionally never resolves, leaving the process running
-    await new Promise<{ success: boolean }>(() => {});
-  } catch (e) {
-    if (options.dev) {
-      throw e;
-    } else {
-      throw new Error(
-        `Could not start production server. Try building your app with \`nx build ${context.projectName}\`.`
+  yield* createAsyncIterable<{ success: boolean; baseUrl: string }>(
+    async ({ done, next, error }) => {
+      const server = fork(
+        nextBin,
+        [mode, ...args, turbo, ...getExperimentalHttpsFlags(options)],
+        {
+          cwd: options.dev ? projectRoot : nextDir,
+          stdio: 'inherit',
+        }
       );
+
+      server.once('exit', (code) => {
+        if (code === 0) {
+          done();
+        } else {
+          error(new Error(`Next.js app exited with code ${code}`));
+        }
+      });
+
+      const killServer = () => {
+        if (server.connected) {
+          server.kill('SIGTERM');
+        }
+      };
+      process.on('exit', () => killServer());
+      process.on('SIGINT', () => killServer());
+      process.on('SIGTERM', () => killServer());
+      process.on('SIGHUP', () => killServer());
+
+      await waitForPortOpen(options.port, { host: options.hostname });
+
+      next({
+        success: true,
+        baseUrl: `http://${options.hostname ?? 'localhost'}:${options.port}`,
+      });
     }
-  }
+  );
+}
+
+function getExperimentalHttpsFlags(options: NextServeBuilderOptions): string[] {
+  if (!options.dev) return [];
+  const flags: string[] = [];
+  if (options.experimentalHttps) flags.push('--experimental-https');
+  if (options.experimentalHttpsKey)
+    flags.push(`--experimental-https-key=${options.experimentalHttpsKey}`);
+  if (options.experimentalHttpsCert)
+    flags.push(`--experimental-https-cert=${options.experimentalHttpsCert}`);
+  if (options.experimentalHttpsCa)
+    flags.push(`--experimental-https-ca=${options.experimentalHttpsCa}`);
+  return flags;
 }

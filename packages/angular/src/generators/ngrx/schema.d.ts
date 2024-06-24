@@ -1,14 +1,14 @@
 export interface NgRxGeneratorOptions {
   directory: string;
   minimal: boolean;
-  module: string;
+  module?: string;
+  parent?: string;
+  route?: string;
   name: string;
-  useDataPersistence: boolean;
   barrels?: boolean;
   facade?: boolean;
   root?: boolean;
   skipFormat?: boolean;
   skipImport?: boolean;
   skipPackageJson?: boolean;
-  syntax?: 'classes' | 'creators';
 }

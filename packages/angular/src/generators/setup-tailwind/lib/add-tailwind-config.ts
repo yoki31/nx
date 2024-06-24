@@ -4,7 +4,7 @@ import {
   ProjectConfiguration,
   stripIndents,
   Tree,
-} from '@nrwl/devkit';
+} from '@nx/devkit';
 import { relative } from 'path';
 import { GeneratorOptions } from '../schema';
 
@@ -28,7 +28,6 @@ export function addTailwindConfig(
     joinPathFragments(__dirname, '..', filesDir),
     project.root,
     {
-      projectType: project.projectType,
       relativeSourceRoot: relative(project.root, project.sourceRoot),
       tmpl: '',
     }

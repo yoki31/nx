@@ -1,33 +1,53 @@
 import {
-  convertNxGenerator,
+  addDependenciesToPackageJson,
   formatFiles,
   generateFiles,
-  getWorkspaceLayout,
+  GeneratorCallback,
   joinPathFragments,
   names,
   offsetFromRoot,
+  readNxJson,
   readProjectConfiguration,
+  runTasksInSerial,
   toJS,
   Tree,
   updateProjectConfiguration,
   updateTsConfigsToJs,
-} from '@nrwl/devkit';
-
-import { Schema } from './schema';
-import { libraryGenerator as workspaceLibraryGenerator } from '@nrwl/workspace/generators';
+} from '@nx/devkit';
+import { determineProjectNameAndRootOptions } from '@nx/devkit/src/generators/project-name-and-root-utils';
+import { libraryGenerator as jsLibraryGenerator } from '@nx/js';
+import { addSwcConfig } from '@nx/js/src/utils/swc/add-swc-config';
+import { addSwcDependencies } from '@nx/js/src/utils/swc/add-swc-dependencies';
 import { join } from 'path';
+import { tslibVersion, typesNodeVersion } from '../../utils/versions';
+import { initGenerator } from '../init/init';
+import { Schema } from './schema';
+import { addBuildTargetDefaults } from '@nx/devkit/src/generators/add-build-target-defaults';
 
 export interface NormalizedSchema extends Schema {
-  name: string;
-  prefix: string;
   fileName: string;
+  projectName: string;
   projectRoot: string;
-  projectDirectory: string;
   parsedTags: string[];
+  compiler: 'swc' | 'tsc';
 }
 
 export async function libraryGenerator(tree: Tree, schema: Schema) {
-  const options = normalizeOptions(tree, schema);
+  return await libraryGeneratorInternal(tree, {
+    addPlugin: false,
+    projectNameAndRootFormat: 'derived',
+    ...schema,
+  });
+}
+
+export async function libraryGeneratorInternal(tree: Tree, schema: Schema) {
+  const options = await normalizeOptions(tree, schema);
+  const tasks: GeneratorCallback[] = [
+    await initGenerator(tree, {
+      ...options,
+      skipFormat: true,
+    }),
+  ];
 
   if (options.publishable === true && !schema.importPath) {
     throw new Error(
@@ -35,13 +55,16 @@ export async function libraryGenerator(tree: Tree, schema: Schema) {
     );
   }
 
-  const libraryInstall = await workspaceLibraryGenerator(tree, {
-    ...schema,
+  const libraryInstall = await jsLibraryGenerator(tree, {
+    ...options,
+    bundler: schema.buildable ? 'tsc' : 'none',
+    includeBabelRc: schema.babelJest,
     importPath: options.importPath,
     testEnvironment: 'node',
     skipFormat: true,
     setParserOptionsProject: options.setParserOptionsProject,
   });
+  tasks.push(libraryInstall);
   createFiles(tree, options);
 
   if (options.js) {
@@ -49,45 +72,60 @@ export async function libraryGenerator(tree: Tree, schema: Schema) {
   }
   updateProject(tree, options);
 
+  tasks.push(ensureDependencies(tree));
+
   if (!schema.skipFormat) {
     await formatFiles(tree);
   }
 
-  return libraryInstall;
+  return runTasksInSerial(...tasks);
 }
 
 export default libraryGenerator;
-export const librarySchematic = convertNxGenerator(libraryGenerator);
 
-function normalizeOptions(tree: Tree, options: Schema): NormalizedSchema {
-  const { npmScope, libsDir } = getWorkspaceLayout(tree);
-  const defaultPrefix = npmScope;
-  const name = names(options.name).fileName;
-  const projectDirectory = options.directory
-    ? `${names(options.directory).fileName}/${name}`
-    : name;
+async function normalizeOptions(
+  tree: Tree,
+  options: Schema
+): Promise<NormalizedSchema> {
+  const {
+    projectName,
+    names: projectNames,
+    projectRoot,
+    importPath,
+    projectNameAndRootFormat,
+  } = await determineProjectNameAndRootOptions(tree, {
+    name: options.name,
+    projectType: 'library',
+    directory: options.directory,
+    importPath: options.importPath,
+    projectNameAndRootFormat: options.projectNameAndRootFormat,
+    callingGenerator: '@nx/node:library',
+  });
+  options.projectNameAndRootFormat = projectNameAndRootFormat;
 
-  const projectName = projectDirectory.replace(new RegExp('/', 'g'), '-');
+  const nxJson = readNxJson(tree);
+  const addPluginDefault =
+    process.env.NX_ADD_PLUGINS !== 'false' &&
+    nxJson.useInferencePlugins !== false;
+
+  options.addPlugin ??= addPluginDefault;
+
   const fileName = getCaseAwareFileName({
-    fileName: options.simpleModuleName ? name : projectName,
+    fileName: options.simpleModuleName
+      ? projectNames.projectSimpleName
+      : projectNames.projectFileName,
     pascalCaseFiles: options.pascalCaseFiles,
   });
-  const projectRoot = joinPathFragments(libsDir, projectDirectory);
 
   const parsedTags = options.tags
     ? options.tags.split(',').map((s) => s.trim())
     : [];
 
-  const importPath =
-    options.importPath || `@${defaultPrefix}/${projectDirectory}`;
-
   return {
     ...options,
-    prefix: defaultPrefix, // we could also allow customizing this
     fileName,
-    name: projectName,
+    projectName,
     projectRoot,
-    projectDirectory,
     parsedTags,
     importPath,
   };
@@ -132,15 +170,19 @@ function updateProject(tree: Tree, options: NormalizedSchema) {
     return;
   }
 
-  const project = readProjectConfiguration(tree, options.name);
-  const { libsDir } = getWorkspaceLayout(tree);
+  const project = readProjectConfiguration(tree, options.projectName);
+  const rootProject = options.projectRoot === '.' || options.projectRoot === '';
 
   project.targets = project.targets || {};
+  addBuildTargetDefaults(tree, `@nx/js:${options.compiler}`);
   project.targets.build = {
-    executor: '@nrwl/node:package',
+    executor: `@nx/js:${options.compiler}`,
     outputs: ['{options.outputPath}'],
     options: {
-      outputPath: `dist/${libsDir}/${options.projectDirectory}`,
+      outputPath: joinPathFragments(
+        'dist',
+        rootProject ? options.projectName : options.projectRoot
+      ),
       tsConfig: `${options.projectRoot}/tsconfig.lib.json`,
       packageJson: `${options.projectRoot}/package.json`,
       main: `${options.projectRoot}/src/index` + (options.js ? '.js' : '.ts'),
@@ -148,9 +190,22 @@ function updateProject(tree: Tree, options: NormalizedSchema) {
     },
   };
 
+  if (options.compiler === 'swc') {
+    addSwcDependencies(tree);
+    addSwcConfig(tree, options.projectRoot);
+  }
+
   if (options.rootDir) {
     project.targets.build.options.srcRootForCompilationRoot = options.rootDir;
   }
 
-  updateProjectConfiguration(tree, options.name, project);
+  updateProjectConfiguration(tree, options.projectName, project);
+}
+
+function ensureDependencies(tree: Tree): GeneratorCallback {
+  return addDependenciesToPackageJson(
+    tree,
+    { tslib: tslibVersion },
+    { '@types/node': typesNodeVersion }
+  );
 }

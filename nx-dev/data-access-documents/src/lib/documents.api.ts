@@ -1,94 +1,198 @@
+import {
+  DocumentMetadata,
+  ProcessedDocument,
+  RelatedDocument,
+} from '@nx/nx-dev/models-document';
 import { readFileSync } from 'fs';
 import { join } from 'path';
-import matter from 'gray-matter';
-import { extractTitle } from './documents.utils';
-import { DocumentData, DocumentMetadata } from './documents.models';
+import { TagsApi } from './tags.api';
 
-export interface StaticDocumentPaths {
+interface StaticDocumentPaths {
   params: { segments: string[] };
 }
 
 export class DocumentsApi {
+  private readonly manifest: Record<string, DocumentMetadata>;
+
   constructor(
     private readonly options: {
+      id: string;
+      manifest: Record<string, DocumentMetadata>;
+      prefix: string;
       publicDocsRoot: string;
-      documents: DocumentMetadata;
+      tagsApi: TagsApi;
     }
   ) {
+    if (!options.id) {
+      throw new Error('id cannot be undefined');
+    }
+    if (!options.prefix) {
+      options.prefix = '';
+    }
     if (!options.publicDocsRoot) {
       throw new Error('public docs root cannot be undefined');
     }
-  }
-
-  getDocument(path: string[]): DocumentData {
-    const docPath = this.getFilePath(path);
-
-    const originalContent = readFileSync(docPath, 'utf8');
-    const file = matter(originalContent);
-
-    // Set default title if not provided in front-matter section.
-    if (!file.data.title) {
-      file.data.title = extractTitle(originalContent) ?? path[path.length - 1];
-      file.data.description = file.excerpt ?? path[path.length - 1];
+    if (!options.manifest) {
+      throw new Error('public document sources cannot be undefined');
     }
 
+    this.manifest = structuredClone(this.options.manifest);
+  }
+  private getManifestKey(path: string): string {
+    return '/' + path;
+  }
+
+  getFilePath(path: string): string {
+    return join(this.options.publicDocsRoot, `${path}.md`);
+  }
+
+  getParamsStaticDocumentPaths(): StaticDocumentPaths[] {
+    return Object.keys(this.manifest).map((path) => ({
+      params: {
+        segments: !!this.options.prefix
+          ? [this.options.prefix].concat(path.split('/').filter(Boolean).flat())
+          : path.split('/').filter(Boolean).flat(),
+      },
+    }));
+  }
+  getSlugsStaticDocumentPaths(): string[] {
+    if (this.options.prefix)
+      return Object.keys(this.manifest).map(
+        (path) => `/${this.options.prefix}` + path
+      );
+    return Object.keys(this.manifest);
+  }
+
+  getDocument(path: string[]): ProcessedDocument {
+    const document: DocumentMetadata | null =
+      this.manifest[this.getManifestKey(path.join('/'))] || null;
+
+    if (!document) {
+      if (
+        path[0] === 'nx-api' &&
+        path[1] === 'devkit' &&
+        path[2] === 'documents'
+      ) {
+        const file = `generated/devkit/${path.slice(3).join('/')}`;
+        return {
+          content: readFileSync(this.getFilePath(file), 'utf8'),
+          description: '',
+          filePath: this.getFilePath(file),
+          id: path.at(-1) || '',
+          name: path.at(-1) || '',
+          relatedDocuments: {},
+          tags: [],
+        };
+      }
+      throw new Error(
+        `Document not found in manifest with: "${path.join('/')}"`
+      );
+    }
+    if (this.isDocumentIndex(document)) return this.getDocumentIndex(path);
     return {
-      filePath: docPath,
-      data: file.data,
-      content: file.content,
-      excerpt: file.excerpt,
+      content: readFileSync(this.getFilePath(document.file), 'utf8'),
+      description: document.description,
+      filePath: this.getFilePath(document.file),
+      id: document.id,
+      name: document.name,
+      mediaImage: document.mediaImage || '',
+      relatedDocuments: this.getRelatedDocuments(document.tags),
+      tags: document.tags,
     };
   }
 
-  getDocuments() {
-    const docs = this.options.documents;
-    if (docs) return docs;
-    throw new Error(`Cannot find any documents`);
+  getRelatedDocuments(tags: string[]): Record<string, RelatedDocument[]> {
+    const relatedDocuments = {};
+    tags.forEach(
+      (tag) =>
+        (relatedDocuments[tag] = this.options.tagsApi.getAssociatedItems(tag))
+    );
+
+    return relatedDocuments;
   }
 
-  getStaticDocumentPaths(): StaticDocumentPaths[] {
-    const paths: StaticDocumentPaths[] = [];
+  isDocumentIndex(document: DocumentMetadata): boolean {
+    return !!document.itemList.length;
+  }
+  generateDocumentIndexTemplate(document: DocumentMetadata): string {
+    const cardsTemplate = document.itemList
+      .map((i) => ({
+        title: i.name,
+        description: i.description ?? '',
+        url: i.path,
+      }))
+      .map(
+        (card) =>
+          `{% card title="${card.title}" description="${
+            card.description
+          }" url="${[this.options.prefix, card.url]
+            .filter(Boolean)
+            .join('/')}" /%}\n`
+      )
+      .join('');
+    return [
+      `# ${document.name}\n\n ${document.description ?? ''}\n\n`,
+      '{% cards %}\n',
+      cardsTemplate,
+      '{% /cards %}\n\n',
+    ].join('');
+  }
+  getDocumentIndex(path: string[]): ProcessedDocument {
+    const document: DocumentMetadata | null =
+      this.manifest[this.getManifestKey(path.join('/'))] || null;
 
-    function recur(curr, acc) {
-      if (curr.itemList) {
-        curr.itemList.forEach((ii) => {
-          recur(ii, [...acc, curr.id]);
-        });
-      } else {
-        paths.push({
-          params: {
-            segments: [...acc, curr.id],
-          },
-        });
-      }
-    }
+    if (!document)
+      throw new Error(
+        `Document not found in manifest with: "${path.join('/')}"`
+      );
 
-    if (!this.options.documents || !this.options.documents.itemList)
-      throw new Error(`Can't find any items`);
-    this.options.documents.itemList.forEach((item) => {
-      recur(item, []);
-    });
+    if (!!document.file)
+      return {
+        content: readFileSync(this.getFilePath(document.file), 'utf8'),
+        description: document.description,
+        filePath: this.getFilePath(document.file),
+        id: document.id,
+        name: document.name,
+        relatedDocuments: this.getRelatedDocuments(document.tags),
+        tags: document.tags,
+      };
 
-    return paths;
+    return {
+      content: this.generateDocumentIndexTemplate(document),
+      description: document.description,
+      filePath: '',
+      id: document.id,
+      name: document.name,
+      relatedDocuments: this.getRelatedDocuments(document.tags),
+      tags: document.tags,
+    };
   }
 
-  private getFilePath(path: string[]): string {
-    let items = this.options.documents?.itemList;
+  generateRootDocumentIndex(options: {
+    name: string;
+    description: string;
+  }): ProcessedDocument {
+    const document = {
+      id: 'root',
+      name: options.name,
+      description: options.description,
+      file: '',
+      path: '',
+      isExternal: false,
+      itemList: Object.keys(this.manifest)
+        .filter((k) => k.split('/').length < 4) // Getting only top categories
+        .map((k) => this.manifest[k]),
+      tags: [],
+    };
 
-    if (!items) {
-      throw new Error(`Document not found`);
-    }
-
-    let found;
-    for (const part of path) {
-      found = items?.find((item) => item.id === part);
-      if (found) {
-        items = found.itemList;
-      } else {
-        throw new Error(`Document not found`);
-      }
-    }
-    const file = found.file ?? ['default', ...path].join('/');
-    return join(this.options.publicDocsRoot, `${file}.md`);
+    return {
+      content: this.generateDocumentIndexTemplate(document),
+      description: document.description,
+      filePath: '',
+      id: document.id,
+      name: document.name,
+      relatedDocuments: this.getRelatedDocuments(document.tags),
+      tags: document.tags,
+    };
   }
 }

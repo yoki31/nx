@@ -1,58 +1,40 @@
-import { readProjectConfiguration, Tree } from '@nrwl/devkit';
-import { createTreeWithEmptyWorkspace } from '@nrwl/devkit/testing';
-import { Linter } from '@nrwl/linter';
-import { libraryGenerator } from '@nrwl/workspace/src/generators/library/library';
+import 'nx/src/internal-testing-utils/mock-project-graph';
+
+import { readProjectConfiguration, Tree } from '@nx/devkit';
+import { createTreeWithEmptyWorkspace } from '@nx/devkit/testing';
+import { Linter } from '@nx/eslint';
+import { libraryGenerator } from '@nx/js';
 import { addLinting } from './add-linting';
 
 describe('Add Linting', () => {
   let tree: Tree;
 
   beforeEach(async () => {
-    tree = createTreeWithEmptyWorkspace();
+    tree = createTreeWithEmptyWorkspace({ layout: 'apps-libs' });
     await libraryGenerator(tree, {
       name: 'my-lib',
       linter: Linter.None,
     });
   });
 
-  it('should add update `workspace.json` file properly when eslint is passed', () => {
-    addLinting(
-      tree,
-      'my-lib',
-      'libs/my-lib',
-      ['libs/my-lib/tsconfig.lib.json'],
-      Linter.EsLint
-    );
-    const project = readProjectConfiguration(tree, 'my-lib');
+  it('should add a .eslintrc.json when is passed', async () => {
+    await addLinting(tree, {
+      projectName: 'my-lib',
+      linter: Linter.EsLint,
+      tsConfigPaths: ['libs/my-lib/tsconfig.lib.json'],
+      projectRoot: 'libs/my-lib',
+    });
 
-    expect(project.targets.lint).toBeDefined();
-    expect(project.targets.lint.executor).toEqual('@nrwl/linter:eslint');
-  });
-
-  it('should add update `workspace.json` file properly when tslint is passed', () => {
-    addLinting(
-      tree,
-      'my-lib',
-      'libs/my-lib',
-      ['libs/my-lib/tsconfig.lib.json'],
-      Linter.TsLint
-    );
-    const project = readProjectConfiguration(tree, 'my-lib');
-
-    expect(project.targets.lint).toBeDefined();
-    expect(project.targets.lint.executor).toEqual(
-      '@angular-devkit/build-angular:tslint'
-    );
+    expect(tree.exists('libs/my-lib/.eslintrc.json')).toBeTruthy();
   });
 
   it('should not add lint target when "none" is passed', async () => {
-    addLinting(
-      tree,
-      'my-lib',
-      'libs/my-lib',
-      ['libs/my-lib/tsconfig.lib.json'],
-      Linter.None
-    );
+    await addLinting(tree, {
+      projectName: 'my-lib',
+      linter: Linter.None,
+      tsConfigPaths: ['libs/my-lib/tsconfig.lib.json'],
+      projectRoot: 'libs/my-lib',
+    });
     const project = readProjectConfiguration(tree, 'my-lib');
 
     expect(project.targets.lint).toBeUndefined();

@@ -1,58 +1,86 @@
-import { joinPathFragments, Tree } from '@nrwl/devkit';
+import { joinPathFragments, readNxJson, type Tree } from '@nx/devkit';
+import { determineProjectNameAndRootOptions } from '@nx/devkit/src/generators/project-name-and-root-utils';
+import { Linter } from '@nx/eslint';
+import { E2eTestRunner, UnitTestRunner } from '../../../utils/test-runners';
 import type { Schema } from '../schema';
 import type { NormalizedSchema } from './normalized-schema';
+import { getInstalledAngularVersionInfo } from '../../utils/version-utils';
 
-import { names, getWorkspaceLayout } from '@nrwl/devkit';
-import { E2eTestRunner, UnitTestRunner } from '../../../utils/test-runners';
-import { Linter } from '@nrwl/linter';
-
-export function normalizeOptions(
+export async function normalizeOptions(
   host: Tree,
   options: Partial<Schema>
-): NormalizedSchema {
-  const { appsDir, npmScope, standaloneAsDefault } = getWorkspaceLayout(host);
+): Promise<NormalizedSchema> {
+  const {
+    projectName: appProjectName,
+    projectRoot: appProjectRoot,
+    projectNameAndRootFormat,
+  } = await determineProjectNameAndRootOptions(host, {
+    name: options.name,
+    projectType: 'application',
+    directory: options.directory,
+    projectNameAndRootFormat: options.projectNameAndRootFormat,
+    rootProject: options.rootProject,
+    callingGenerator: '@nx/angular:application',
+  });
+  options.rootProject = appProjectRoot === '.';
+  options.projectNameAndRootFormat = projectNameAndRootFormat;
 
-  const appDirectory = options.directory
-    ? `${names(options.directory).fileName}/${names(options.name).fileName}`
-    : names(options.name).fileName;
-
-  let e2eProjectName = `${names(options.name).fileName}-e2e`;
-  const appProjectName = appDirectory
-    .replace(new RegExp('/', 'g'), '-')
-    .replace(/-\d+/g, '');
-  if (options.e2eTestRunner !== 'cypress') {
-    e2eProjectName = `${appProjectName}-e2e`;
+  const nxJson = readNxJson(host);
+  let e2eWebServerTarget = 'serve';
+  let e2ePort = options.port ?? 4200;
+  if (
+    nxJson.targetDefaults?.[e2eWebServerTarget] &&
+    (nxJson.targetDefaults?.[e2eWebServerTarget].options?.port ||
+      nxJson.targetDefaults?.[e2eWebServerTarget].options?.env?.PORT)
+  ) {
+    e2ePort =
+      nxJson.targetDefaults?.[e2eWebServerTarget].options?.port ||
+      nxJson.targetDefaults?.[e2eWebServerTarget].options?.env?.PORT;
   }
 
-  const appProjectRoot = joinPathFragments(appsDir, appDirectory);
-  const e2eProjectRoot = joinPathFragments(appsDir, `${appDirectory}-e2e`);
+  const e2eProjectName = options.rootProject ? 'e2e' : `${appProjectName}-e2e`;
+  const e2eProjectRoot = options.rootProject ? 'e2e' : `${appProjectRoot}-e2e`;
+  const e2eWebServerAddress = `http://localhost:${e2ePort}`;
 
   const parsedTags = options.tags
     ? options.tags.split(',').map((s) => s.trim())
     : [];
 
-  const defaultPrefix = npmScope;
-
-  options.standaloneConfig = options.standaloneConfig ?? standaloneAsDefault;
+  let bundler = options.bundler;
+  if (!bundler) {
+    const { major: angularMajorVersion } = getInstalledAngularVersionInfo(host);
+    bundler = angularMajorVersion >= 17 ? 'esbuild' : 'webpack';
+  }
 
   // Set defaults and then overwrite with user options
   return {
     style: 'css',
-    routing: false,
+    routing: true,
     inlineStyle: false,
     inlineTemplate: false,
-    skipTests: false,
+    skipTests: options.unitTestRunner === UnitTestRunner.None,
     skipFormat: false,
     unitTestRunner: UnitTestRunner.Jest,
-    e2eTestRunner: E2eTestRunner.Cypress,
+    e2eTestRunner: E2eTestRunner.Playwright,
     linter: Linter.EsLint,
     strict: true,
+    standalone: true,
     ...options,
-    prefix: options.prefix ?? defaultPrefix,
+    prefix: options.prefix || 'app',
     name: appProjectName,
     appProjectRoot,
+    appProjectSourceRoot: `${appProjectRoot}/src`,
     e2eProjectRoot,
     e2eProjectName,
+    e2eWebServerAddress,
+    e2eWebServerTarget,
+    e2ePort,
     parsedTags,
+    bundler,
+    outputPath: joinPathFragments(
+      'dist',
+      !options.rootProject ? appProjectRoot : appProjectName
+    ),
+    ssr: options.ssr ?? false,
   };
 }

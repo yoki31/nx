@@ -1,19 +1,18 @@
-<p style="text-align: center;"><img src="https://raw.githubusercontent.com/nrwl/nx/master/images/nx.png" width="600" alt="Nx - Smart, Fast and Extensible Build System"></p>
+## @nrwl/tao has been merged with nx!
 
-{{links}}
+@nrwl/tao has been deprecated in favor of [nx](https://www.npmjs.com/package/nx). Please use that instead.
 
-<hr>
+[Read more here](https://nx.dev/recipes/other/rescope)
 
-# TAO Cli for Nx
+@nrwl/tao will no longer be published in Nx v19.
 
-{{what-is-nx}}
+<p style="text-align: center;">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/nrwl/nx/master/images/nx-dark.svg">
+    <img alt="Nx - Smart Monorepos · Fast CI" src="https://raw.githubusercontent.com/nrwl/nx/master/images/nx-light.svg" width="100%">
+  </picture>
+</p>
 
-## What is It
+# Nx: Smart Monorepos · Fast CI
 
-An internal package implementing the core functionality of the Nx CLI.
-
-## How to Use
-
-This package is used by the `@nrwl/workspace`. See [https://github.com/nrwl/nx](https://github.com/nrwl/nx) for more information.
-
-{{resources}}
+Nx is a build system with built-in tooling and advanced CI capabilities. It helps you maintain and scale monorepos, both locally and on CI.

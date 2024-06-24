@@ -1,8 +1,68 @@
-import type { Tree } from '@nrwl/devkit';
-import { joinPathFragments, offsetFromRoot, writeJson } from '@nrwl/devkit';
-import { stringUtils } from '@nrwl/workspace';
+import type { Tree } from '@nx/devkit';
+import { joinPathFragments, offsetFromRoot, writeJson } from '@nx/devkit';
+import type { Linter } from 'eslint';
 import type { AddLintingGeneratorSchema } from '../schema';
+import { camelize, dasherize } from '@nx/devkit/src/utils/string-utils';
 
+type EslintExtensionSchema = {
+  prefix: string;
+};
+
+/**
+ * @deprecated Use tools from `@nx/eslint/src/generators/utils/eslint-file` instead
+ */
+export const extendAngularEslintJson = (
+  json: Linter.Config,
+  options: EslintExtensionSchema
+) => {
+  const overrides = [
+    {
+      ...json.overrides[0],
+      files: ['*.ts'],
+      extends: [
+        ...(json.overrides[0].extends || []),
+        'plugin:@nx/angular',
+        'plugin:@angular-eslint/template/process-inline-templates',
+      ],
+      rules: {
+        '@angular-eslint/directive-selector': [
+          'error',
+          {
+            type: 'attribute',
+            prefix: camelize(options.prefix),
+            style: 'camelCase',
+          },
+        ],
+        '@angular-eslint/component-selector': [
+          'error',
+          {
+            type: 'element',
+            prefix: dasherize(options.prefix),
+            style: 'kebab-case',
+          },
+        ],
+      },
+    },
+    {
+      files: ['*.html'],
+      extends: ['plugin:@nx/angular-template'],
+      /**
+       * Having an empty rules object present makes it more obvious to the user where they would
+       * extend things from if they needed to
+       */
+      rules: {},
+    },
+  ];
+
+  return {
+    ...json,
+    overrides,
+  };
+};
+
+/**
+ * @deprecated Use {@link extendAngularEslintJson} instead
+ */
 export function createEsLintConfiguration(
   tree: Tree,
   options: AddLintingGeneratorSchema
@@ -18,7 +78,7 @@ export function createEsLintConfiguration(
       {
         files: ['*.ts'],
         extends: [
-          'plugin:@nrwl/nx/angular',
+          'plugin:@nx/angular',
           'plugin:@angular-eslint/template/process-inline-templates',
         ],
         /**
@@ -44,7 +104,7 @@ export function createEsLintConfiguration(
             'error',
             {
               type: 'attribute',
-              prefix: stringUtils.camelize(options.prefix),
+              prefix: camelize(options.prefix),
               style: 'camelCase',
             },
           ],
@@ -52,7 +112,7 @@ export function createEsLintConfiguration(
             'error',
             {
               type: 'element',
-              prefix: stringUtils.dasherize(options.prefix),
+              prefix: dasherize(options.prefix),
               style: 'kebab-case',
             },
           ],
@@ -60,7 +120,7 @@ export function createEsLintConfiguration(
       },
       {
         files: ['*.html'],
-        extends: ['plugin:@nrwl/nx/angular-template'],
+        extends: ['plugin:@nx/angular-template'],
         /**
          * Having an empty rules object present makes it more obvious to the user where they would
          * extend things from if they needed to

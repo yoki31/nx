@@ -1,11 +1,9 @@
-import { ExecutorContext } from '@nrwl/devkit';
-import { readCachedProjectGraph } from '@nrwl/workspace/src/core/project-graph';
+import { ExecutorContext, ProjectGraphProjectNode } from '@nx/devkit';
 import {
-  calculateProjectDependencies,
-  checkDependentProjectsHaveBeenBuilt,
+  calculateProjectBuildableDependencies,
   createTmpTsConfig,
-} from '@nrwl/workspace/src/utilities/buildable-libs-utils';
-import { join } from 'path';
+  DependentBuildableProjectNode,
+} from './buildable-libs-utils';
 
 export function checkDependencies(
   context: ExecutorContext,
@@ -13,53 +11,37 @@ export function checkDependencies(
 ): {
   tmpTsConfig: string | null;
   projectRoot: string;
+  target: ProjectGraphProjectNode;
+  dependencies: DependentBuildableProjectNode[];
 } {
-  const projectGraph = readCachedProjectGraph();
-  const { target, dependencies, nonBuildableDependencies } =
-    calculateProjectDependencies(
-      projectGraph,
-      context.root,
-      context.projectName,
-      context.targetName,
-      context.configurationName
-    );
+  const { target, dependencies } = calculateProjectBuildableDependencies(
+    context.taskGraph,
+    context.projectGraph,
+    context.root,
+    context.projectName,
+    context.targetName,
+    context.configurationName
+  );
   const projectRoot = target.data.root;
 
-  if (nonBuildableDependencies.length > 0) {
-    throw new Error(
-      `Buildable libraries can only depend on other buildable libraries. You must define the ${
-        context.targetName
-      } target for the following libraries: ${nonBuildableDependencies
-        .map((t) => `"${t}"`)
-        .join(', ')}`
-    );
-  }
-
   if (dependencies.length > 0) {
-    const areDependentProjectsBuilt = checkDependentProjectsHaveBeenBuilt(
-      context.root,
-      context.projectName,
-      context.targetName,
-      dependencies
-    );
-    if (!areDependentProjectsBuilt) {
-      throw new Error(
-        `Some dependencies of '${context.projectName}' have not been built. This probably due to the ${context.targetName} target being misconfigured.`
-      );
-    }
     return {
       tmpTsConfig: createTmpTsConfig(
-        join(context.root, tsConfigPath),
+        tsConfigPath,
         context.root,
         projectRoot,
         dependencies
       ),
       projectRoot,
+      target,
+      dependencies,
     };
   }
 
   return {
     tmpTsConfig: null,
     projectRoot,
+    target,
+    dependencies,
   };
 }

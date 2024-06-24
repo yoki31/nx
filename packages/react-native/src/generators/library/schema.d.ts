@@ -1,11 +1,13 @@
-import { Linter } from '@nrwl/linter';
+import type { ProjectNameAndRootFormat } from '@nx/devkit/src/generators/project-name-and-root-utils';
+import type { Linter } from '@nx/eslint';
 
 /**
- * Same as the @nrwl/react library schema, except it removes keys: style, component, routing, appProject
+ * Same as the @nx/react library schema, except it removes keys: style, component, routing, appProject
  */
 export interface Schema {
   name: string;
   directory?: string;
+  projectNameAndRootFormat?: ProjectNameAndRootFormat;
   skipTsConfig: boolean;
   skipFormat: boolean;
   tags?: string;
@@ -16,7 +18,8 @@ export interface Schema {
   buildable?: boolean;
   importPath?: string;
   js?: boolean;
-  globalCss?: boolean;
   strict?: boolean;
   setParserOptionsProject?: boolean;
+  skipPackageJson?: boolean; //default is false
+  addPlugin?: boolean;
 }

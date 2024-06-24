@@ -1,9 +1,16 @@
-// TODO(chau): change back to 2015 when https://github.com/swc-project/swc/issues/1108 is solved
-// target: 'es2015'
-import { Tree } from '@nrwl/devkit';
+import { type Tree } from '@nx/devkit';
 import { join } from 'path';
 
-const swcOptionsString = () => `{
+export const defaultExclude = [
+  'jest.config.ts',
+  '.*\\.spec.tsx?$',
+  '.*\\.test.tsx?$',
+  './src/jest-setup.ts$',
+  './**/jest-setup.ts$',
+  '.*.js$',
+];
+
+const swcOptionsString = (type: 'commonjs' | 'es6' = 'commonjs') => `{
   "jsc": {
     "target": "es2017",
     "parser": {
@@ -20,16 +27,18 @@ const swcOptionsString = () => `{
     "loose": true
   },
   "module": {
-    "type": "commonjs",
-    "strict": true,
-    "noInterop": true
-  }
+    "type": "${type}"
+  },
+  "sourceMaps": true,
+  "exclude": ${JSON.stringify(defaultExclude)}
 }`;
 
-export function addSwcConfig(tree: Tree, projectDir: string) {
+export function addSwcConfig(
+  tree: Tree,
+  projectDir: string,
+  type: 'commonjs' | 'es6' = 'commonjs'
+) {
   const swcrcPath = join(projectDir, '.swcrc');
-  const isSwcConfigExist = tree.exists(swcrcPath);
-  if (isSwcConfigExist) return;
-
-  tree.write(swcrcPath, swcOptionsString());
+  if (tree.exists(swcrcPath)) return;
+  tree.write(swcrcPath, swcOptionsString(type));
 }

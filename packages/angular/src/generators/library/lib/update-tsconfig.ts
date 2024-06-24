@@ -1,46 +1,41 @@
-import {
-  getWorkspaceLayout,
-  joinPathFragments,
-  Tree,
-  updateJson,
-} from '@nrwl/devkit';
+import type { Tree } from '@nx/devkit';
+import { updateJson } from '@nx/devkit';
+import { getRelativePathToRootTsConfig } from '@nx/js';
 import { NormalizedSchema } from './normalized-schema';
+import {
+  extractTsConfigBase,
+  updateProjectRootTsConfig,
+} from '../../utils/update-project-root-tsconfig';
 
-function updateRootConfig(host: Tree, options: NormalizedSchema) {
-  updateJson(host, 'tsconfig.base.json', (json) => {
-    const c = json.compilerOptions;
-    c.paths = c.paths || {};
-    delete c.paths[options.name];
-
-    if (c.paths[options.importPath]) {
-      throw new Error(
-        `You already have a library using the import path "${options.importPath}". Make sure to specify a unique one.`
-      );
-    }
-
-    c.paths[options.importPath] = [
-      joinPathFragments(
-        getWorkspaceLayout(host).libsDir,
-        options.projectDirectory,
-        '/src/index.ts'
-      ),
-    ];
-
-    return json;
-  });
-}
-
-function updateProjectConfig(host: Tree, options: NormalizedSchema) {
+function updateProjectConfig(
+  host: Tree,
+  options: NormalizedSchema['libraryOptions']
+) {
   updateJson(host, `${options.projectRoot}/tsconfig.lib.json`, (json) => {
-    json.include = ['**/*.ts'];
+    json.include = ['src/**/*.ts'];
     json.exclude = [
-      ...new Set([...(json.exclude || []), '**/*.test.ts', '**/*.spec.ts']),
+      ...new Set([
+        ...(json.exclude || []),
+        'jest.config.ts',
+        'src/**/*.test.ts',
+        'src/**/*.spec.ts',
+      ]),
     ];
     return json;
   });
+
+  // tsconfig.json
+  updateProjectRootTsConfig(
+    host,
+    options.projectRoot,
+    getRelativePathToRootTsConfig(host, options.projectRoot)
+  );
 }
 
-function updateProjectIvyConfig(host: Tree, options: NormalizedSchema) {
+function updateProjectIvyConfig(
+  host: Tree,
+  options: NormalizedSchema['libraryOptions']
+) {
   if (options.buildable || options.publishable) {
     return updateJson(
       host,
@@ -54,8 +49,11 @@ function updateProjectIvyConfig(host: Tree, options: NormalizedSchema) {
   }
 }
 
-export function updateTsConfig(host: Tree, options: NormalizedSchema) {
-  updateRootConfig(host, options);
+export function updateTsConfig(
+  host: Tree,
+  options: NormalizedSchema['libraryOptions']
+) {
+  extractTsConfigBase(host);
   updateProjectConfig(host, options);
   updateProjectIvyConfig(host, options);
 }
